@@ -3,8 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
-    pub question: String,
-    pub answer: String,
+    pub fields: Vec<(String, String)>,
     pub tags: Vec<String>,
 }
 
@@ -159,9 +158,9 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
                     FlashItem::Answer(a) => {
                         if let (Some(question), Some(model)) = 
                             (current_question.take(), &mut current_model) {
+                            let fields = vec![("Question".to_string(), question), ("Answer".to_string(), a)];
                             model.cards.push(FlashCard {
-                                question,
-                                answer: a,
+                                fields,
                                 tags: current_tags.clone(),
                             });
                         }
@@ -201,8 +200,7 @@ fn main() {
                 
                 println!("  Cards:");
                 for card in &model.cards {
-                    println!("    Q: {}", card.question);
-                    println!("    A: {}", card.answer);
+                    println!("    Q: {:?}", card.fields);
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
                     }
