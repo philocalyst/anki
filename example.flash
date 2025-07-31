@@ -1,0 +1,15 @@
+=Basic=
+alias Question to Q
+alias Answer to A
+
+["Biology", "Covid-19", "Health"]
+Question: HII
+Answer: YEPPP
+
+// OR
+Q:
+A:
+
+=Complex=
+Question:
+Answer:
