@@ -1,4 +1,9 @@
 use chumsky::prelude::*;
+use std::ops::Range;
+use ariadne::Source;
+use std::io;
+use std::io::Write;
+use std::fs;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -145,7 +150,7 @@ fn parser<'a>(
     line.repeated()
         .collect::<Vec<_>>()
         .then_ignore(end())
-        .map(|items| {
+        .map_with(|items, extra| {
             let mut models = Vec::new();
             let mut current_model: Option<NoteModel> = None;
             let mut current_tags: Vec<String> = Vec::new();
@@ -186,15 +191,40 @@ fn parser<'a>(
                     }
 
                     FlashItem::Pair((field, content)) => {
-                        // If we have a store of alises, and none of them match, then there's an issue!!
-                        if let Some(ref model) = current_model {
-                            if !config.fields.iter().any(|f| f.name.as_str() == field)
-                                && model.aliases.get(&field).is_none()
-                            {
-                                let error = format!("Unknown field: {}", field);
-                                println!("{}", error);
-                            }
-                        }
+                        use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
+
+    let mut colors = ColorGenerator::new();
+
+    let path = "/home/miles/Downloads/oh/example.flash";
+    let content = fs::read_to_string(path).unwrap();
+
+    // pick some colours
+    let a = colors.next();
+    let b = colors.next();
+    let out = Color::Fixed(81);
+
+                         if let Some(ref model) = current_model {
+        if !config.fields.iter().any(|f| f.name == field)
+            && model.aliases.get(&field).is_none()
+        {
+            let yep: SimpleSpan = extra.span();
+            let span: Range<usize> = yep.into_range();
+            // build the error
+            let report = Report::build(ReportKind::Error, (path, span.clone()))
+                .with_code(3)
+                .with_message("Unknown field!")
+                .with_label(
+                    Label::new((path, span))
+                        .with_message(format!("Is this a typo?"))
+                        .with_color(a),
+                )
+                .finish();
+
+            // write it out
+            let mut stdout = io::stdout();
+            report.write((path, Source::from(&content)), &mut stdout).unwrap();
+        }
+    }
                         current_fields.push((field, content));
                     }
 
@@ -256,9 +286,9 @@ fn main() {
 
                 println!("  Cards:");
                 for card in &model.cards {
-                    for field in card.fields.clone() {
-                        println!("{} : {}", field.0, field.1);
-                    }
+                    // for field in card.fields.clone() {
+                    //     println!("{} : {}", field.0, field.1);
+                    // }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
                     }
