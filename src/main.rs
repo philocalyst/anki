@@ -196,7 +196,8 @@ fn parser<'a>(
                         // If we have a store of alises, and none of them match, then there's an issue!!
                         if let Some(ref model) = current_model {
              if !config.fields.iter().any(|f| f.name.as_str() == field) && model.aliases.get(&field).is_none() {
-                 println!("{:?}ZZ{:?}ZZ{}", model.aliases, config.fields, field);
+let error =                 format!("Unknown field: {}", field);
+                 println!("{}",error);
                  }
                  }
                         current_fields.push((field, content));
@@ -260,7 +261,9 @@ fn main() {
 
                 println!("  Cards:");
                 for card in &model.cards {
-                    println!("    Fields: {:?}", card.fields);
+                    for field in card.fields.clone() {
+                    println!("{} : {}", field.0, field.1);
+                    }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
                     }
