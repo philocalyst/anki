@@ -142,7 +142,6 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
                             aliases: HashMap::new(),
                             cards: Vec::new(),
                         });
-                        current_tags.clear();
                     }
                     
                     FlashItem::Alias { from, to } => {
@@ -167,6 +166,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
                                 fields,
                                 tags: current_tags.clone(),
                             });
+                            current_tags.clear();
                         }
                     }
                     
