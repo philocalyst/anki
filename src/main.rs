@@ -1,5 +1,6 @@
 use chumsky::prelude::*;
 use std::collections::HashMap;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
@@ -19,15 +20,59 @@ pub enum FlashItem {
     NoteModel(String),
     Alias { from: String, to: String },
     Tags(Vec<String>),
-    Question(String),
-    Answer(String),
+    Field(String),
+    Content(String),
     Comment(String),
     BlankLine(String),
+}
+
+
+#[derive( Deserialize, Debug)]
+pub struct Config {
+    pub schema_version: String,
+    pub name:           String,
+    pub tags:           Vec<String>,
+    pub sort_field:     String,
+    pub field_order:    Vec<String>,
+
+    // this corresponds to the `[defaults]` table
+    pub defaults:       Defaults,
+
+    // this corresponds to the `[[fields]]` array of tables
+    pub fields:         Vec<Field>,
+
+    pub template_order: Option<Vec<String>>,
+
+    // this corresponds to the `[[templates]]` array of tables
+    pub templates:      Vec<Template>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Defaults {
+    pub font: String,
+    pub size: u32,
+    pub rtl:  bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Field {
+    pub name:   String,
+    pub sticky: bool,
+    pub media:  Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Template {
+    pub name:            String,
+    pub required_fields: Vec<String>,
 }
 
 fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> {
     // Whitespace parser (excluding newlines)
     let inline_whitespace = one_of(" \t").repeated();
+
+    let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
+▍┆   let config: Config = toml::from_str(&example_config).unwrap();
     
     // Note model parser (=Basic=)
     let note_model = just('=')
@@ -69,31 +114,18 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
         .then_ignore(just(']'))
         .map(FlashItem::Tags);
 
-    // Question parser (Question: content or Q: content)
-    let question_label = text::keyword("Question").or(text::keyword("Q"));
-    
-    let question = question_label
-        .then_ignore(just(':'))
+    // The field lable. We can't run with aliases yet as they're only available in the parsed version, but we can look for anything similar?
+    let content = text::ident() 
+        .ignore_then(just(':'))
         .then_ignore(inline_whitespace.clone())
         .ignore_then(
             none_of('\n')
                 .repeated()
                 .collect::<String>()
         )
-        .map(|content| FlashItem::Question(content.trim().to_string()));
+        .map(|content| FlashItem::Content(content.trim().to_string()));
 
-    // Answer parser (Answer: content or A: content)  
-    let answer_label = text::keyword("Answer").or(text::keyword("A"));
-    
-    let answer = answer_label
-        .then_ignore(just(':'))
-        .then_ignore(inline_whitespace.clone())
-        .ignore_then(
-            none_of('\n')
-                .repeated()
-                .collect::<String>()
-        )
-        .map(|content| FlashItem::Answer(content.trim().to_string()));
+    let field = text::ident().then_ignore(just(':')).map(FlashItem::Field);
 
     // Comment parser (// comment)
     let comment = just("//")
@@ -126,8 +158,10 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
         .map(|items| {
             let mut models = Vec::new();
             let mut current_model: Option<NoteModel> = None;
-            let mut current_question: Option<String> = None;
+            let mut current_field: Option<String> = None;
             let mut current_tags: Vec<String> = Vec::new();
+            let mut current_content: String = String::default();
+            let mut fields: Vec<(String, String)> = Vec::new();
 
             for item in items {
                 match item {
@@ -154,26 +188,31 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
                         current_tags = tags;
                     }
                     
-                    FlashItem::Question(q) => {
-                        current_question = Some(q);
+                    FlashItem::Field(field) => {
+                        current_field = Some(field);
                     }
                     
-                    FlashItem::Answer(a) => {
+                    FlashItem::Content(a) => {
                         if let (Some(question), Some(model)) = 
                             (current_question.take(), &mut current_model) {
-                            let fields = vec![("Question".to_string(), question), ("Answer".to_string(), a)];
-                            model.cards.push(FlashCard {
-                                fields,
-                                tags: current_tags.clone(),
-                            });
-                            current_tags.clear();
+                            current_fields.push((current_field, current_content);
                         }
                     }
                     
                     FlashItem::Comment(_) => {
                         // Ignore comments
                     }
-                     FlashItem::BlankLine(_) => {}
+                     FlashItem::BlankLine(_) => {
+                         if fields.len() >= 1 {
+                             
+                         
+                          model.cards.push(FlashCard {
+fields,
+tags: current_tags.clone(),
+});
+current_tags.clear();
+                     }
+                     }
                 }
             }
 
