@@ -22,6 +22,7 @@ pub enum FlashItem {
     Question(String),
     Answer(String),
     Comment(String),
+    BlankLine(String),
 }
 
 fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> {
@@ -103,6 +104,8 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
         )
         .map(FlashItem::Comment);
 
+    let blank_line = just("").ignore_then(none_of('\n').repeated().collect::<String>()).map(FlashItem::BlankLine);
+
     // Line parser
     let line = choice((
         note_model,
@@ -111,6 +114,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
         question,
         answer,
         comment,
+        blank_line,
     ));
 
     // Full parser
@@ -169,6 +173,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
                     FlashItem::Comment(_) => {
                         // Ignore comments
                     }
+                     FlashItem::BlankLine(_) => {}
                 }
             }
 
@@ -182,9 +187,9 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
 }
 
 fn main() {
-    let example_content = include_str!("/home/miles/Downloads/oh/example.flash");
+    let example_content = include_str!("/home/miles/Downloads/oh/example.flash").replace("\n\n", "\n");
 
-    let parse_result = parser().parse(example_content);
+    let parse_result = parser().parse(&example_content);
     
     match parse_result.into_result() {
         Ok(models) => {
