@@ -65,15 +65,14 @@ pub struct Template {
 }
 
 fn parser<'a>(
-    config: &Config,
-) -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> + '_ {
-    // Whitespace parser (excluding newlines)
-    let inline_whitespace = one_of(" \t").repeated();
+    config: &'a Config,
+) -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> + Clone {
+    // Whitespace parser (excluding newlines), ignored for padding/ignoring
+    let inline_whitespace = one_of(" \t").repeated().ignored();
 
     // Get valid field names from config
     let valid_fields: Vec<String> = config.fields.iter().map(|f| f.name.clone()).collect();
 
-    // Note model parser (=Basic=)
     let note_model = just('=')
         .ignore_then(none_of('=').repeated().collect::<String>())
         .then_ignore(just('='))
@@ -113,24 +112,23 @@ fn parser<'a>(
         .then_ignore(just(']'))
         .map(FlashItem::Tags);
 
-    // Field parser - matches any valid field name from config
-    let field = choice(
-        valid_fields
-            .iter()
-            .map(|field_name| {
-                text::keyword(field_name.as_str())
-                    .then_ignore(just(':'))
-                    .to(field_name.clone())
-            })
-            .collect::<Vec<_>>(),
-    );
+    let field = text::ident()
+        .then_ignore(just(':'))
+        .try_map(|field_name: &str, span| {
+            if config.fields.iter().any(|f| f.name.as_str() == field_name) {
+                Ok(field_name.to_string())
+            } else {
+                Err(Rich::custom(span, format!("Unknown field: {}", field_name)))
+            }
+        });
 
     // Content parser - content that follows a field
-    let content = none_of('\n')
-        .repeated()
-        .collect::<String>();
+    let content = none_of('\n').repeated().collect::<String>();
 
-let pair =    field.then_ignore(inline_whitespace.clone()).then(content);
+    let pair = field
+        .then_ignore(inline_whitespace.clone())
+        .then(content)
+        .map(|(field, content)| FlashItem::Pair((field, content)));
 
     // Comment parser (// comment)
     let comment = just("//")
@@ -148,8 +146,7 @@ let pair =    field.then_ignore(inline_whitespace.clone()).then(content);
         pair,
         comment,
         blank_line,
-    ))
-    .or(text::newline().to(FlashItem::BlankLine));
+    ));
 
     // Full parser
     line.repeated()
@@ -195,9 +192,8 @@ let pair =    field.then_ignore(inline_whitespace.clone()).then(content);
                         current_tags = tags;
                     }
 
-
                     FlashItem::Pair((field, content)) => {
-                            current_fields.push((field, content));
+                        current_fields.push((field, content));
                     }
 
                     FlashItem::Comment(_) => {
