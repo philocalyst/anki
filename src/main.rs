@@ -118,7 +118,7 @@ fn parser<'a>(
             if config.fields.iter().any(|f| f.name.as_str() == field_name) {
                 Ok(field_name.to_string())
             } else {
-                Err(Rich::custom(span, format!("Unknown field: {}", field_name)))
+                Ok(field_name.to_string())
             }
         });
 
@@ -193,6 +193,12 @@ fn parser<'a>(
                     }
 
                     FlashItem::Pair((field, content)) => {
+                        // If we have a store of alises, and none of them match, then there's an issue!!
+                        if let Some(ref model) = current_model {
+             if !config.fields.iter().any(|f| f.name.as_str() == field) && model.aliases.get(&field).is_none() {
+                 println!("{:?}ZZ{:?}ZZ{}", model.aliases, config.fields, field);
+                 }
+                 }
                         current_fields.push((field, content));
                     }
 
