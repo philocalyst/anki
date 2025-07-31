@@ -20,60 +20,59 @@ pub enum FlashItem {
     NoteModel(String),
     Alias { from: String, to: String },
     Tags(Vec<String>),
-    Field(String),
-    Content(String),
+    Pair((String, String)),
     Comment(String),
-    BlankLine(String),
+    BlankLine,
 }
 
-
-#[derive( Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Config {
     pub schema_version: String,
-    pub name:           String,
-    pub tags:           Vec<String>,
-    pub sort_field:     String,
-    pub field_order:    Vec<String>,
-
+    pub name: String,
+    pub tags: Vec<String>,
+    pub sort_field: String,
+    
     // this corresponds to the `[defaults]` table
-    pub defaults:       Defaults,
+    pub defaults: Defaults,
 
     // this corresponds to the `[[fields]]` array of tables
-    pub fields:         Vec<Field>,
+    pub fields: Vec<Field>,
 
     pub template_order: Option<Vec<String>>,
 
     // this corresponds to the `[[templates]]` array of tables
-    pub templates:      Vec<Template>,
+    pub templates: Vec<Template>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Defaults {
     pub font: String,
     pub size: u32,
-    pub rtl:  bool,
+    pub rtl: bool,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Field {
-    pub name:   String,
+    pub name: String,
     pub sticky: bool,
-    pub media:  Vec<String>,
+    pub media: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Template {
-    pub name:            String,
+    pub name: String,
     pub required_fields: Vec<String>,
 }
 
-fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> {
+fn parser<'a>(
+    config: &Config,
+) -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> + '_ {
     // Whitespace parser (excluding newlines)
     let inline_whitespace = one_of(" \t").repeated();
 
-    let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
-▍┆   let config: Config = toml::from_str(&example_config).unwrap();
-    
+    // Get valid field names from config
+    let valid_fields: Vec<String> = config.fields.iter().map(|f| f.name.clone()).collect();
+
     // Note model parser (=Basic=)
     let note_model = just('=')
         .ignore_then(none_of('=').repeated().collect::<String>())
@@ -87,7 +86,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
             none_of([' ', '\t', '\n'])
                 .repeated()
                 .at_least(1)
-                .collect::<String>()
+                .collect::<String>(),
         )
         .then_ignore(inline_whitespace.clone())
         .then_ignore(text::keyword("to"))
@@ -96,7 +95,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
             none_of([' ', '\t', '\n'])
                 .repeated()
                 .at_least(1)
-                .collect::<String>()
+                .collect::<String>(),
         )
         .map(|(from, to)| FlashItem::Alias { from, to });
 
@@ -104,120 +103,131 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, 
     let string_literal = just('"')
         .ignore_then(none_of('"').repeated().collect::<String>())
         .then_ignore(just('"'));
-    
+
     let tags = just('[')
         .ignore_then(
             string_literal
                 .separated_by(just(',').padded_by(inline_whitespace.clone()))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         )
         .then_ignore(just(']'))
         .map(FlashItem::Tags);
 
-    // The field lable. We can't run with aliases yet as they're only available in the parsed version, but we can look for anything similar?
-    let content = text::ident() 
-        .ignore_then(just(':'))
-        .then_ignore(inline_whitespace.clone())
-        .ignore_then(
-            none_of('\n')
-                .repeated()
-                .collect::<String>()
-        )
-        .map(|content| FlashItem::Content(content.trim().to_string()));
+    // Field parser - matches any valid field name from config
+    let field = choice(
+        valid_fields
+            .iter()
+            .map(|field_name| {
+                text::keyword(field_name.as_str())
+                    .then_ignore(just(':'))
+                    .to(field_name.clone())
+            })
+            .collect::<Vec<_>>(),
+    );
 
-    let field = text::ident().then_ignore(just(':')).map(FlashItem::Field);
+    // Content parser - content that follows a field
+    let content = none_of('\n')
+        .repeated()
+        .collect::<String>();
+
+let pair =    field.then_ignore(inline_whitespace.clone()).then(content);
 
     // Comment parser (// comment)
     let comment = just("//")
-        .ignore_then(
-            none_of('\n')
-                .repeated()
-                .collect::<String>()
-        )
+        .ignore_then(none_of('\n').repeated().collect::<String>())
         .map(FlashItem::Comment);
 
-    let blank_line = just("").ignore_then(none_of('\n').repeated().collect::<String>()).map(FlashItem::BlankLine);
+    // Blank line parser
+    let blank_line = text::newline().to(FlashItem::BlankLine);
 
     // Line parser
     let line = choice((
         note_model,
-        alias, 
+        alias,
         tags,
-        question,
-        answer,
+        pair,
         comment,
         blank_line,
-    ));
+    ))
+    .or(text::newline().to(FlashItem::BlankLine));
 
     // Full parser
-    line
-        .separated_by(text::newline())
-        .allow_trailing()
+    line.repeated()
         .collect::<Vec<_>>()
         .then_ignore(end())
         .map(|items| {
             let mut models = Vec::new();
             let mut current_model: Option<NoteModel> = None;
-            let mut current_field: Option<String> = None;
             let mut current_tags: Vec<String> = Vec::new();
-            let mut current_content: String = String::default();
-            let mut fields: Vec<(String, String)> = Vec::new();
+            let mut current_fields: Vec<(String, String)> = Vec::new();
 
             for item in items {
                 match item {
                     FlashItem::NoteModel(name) => {
                         // Save previous model if exists
-                        if let Some(model) = current_model.take() {
+                        if let Some(mut model) = current_model.take() {
+                            // Add any remaining card
+                            if !current_fields.is_empty() {
+                                model.cards.push(FlashCard {
+                                    fields: current_fields.clone(),
+                                    tags: current_tags.clone(),
+                                });
+                                current_fields.clear();
+                                current_tags.clear();
+                            }
                             models.push(model);
                         }
-                        
+
                         current_model = Some(NoteModel {
                             name,
                             aliases: HashMap::new(),
                             cards: Vec::new(),
                         });
                     }
-                    
+
                     FlashItem::Alias { from, to } => {
                         if let Some(ref mut model) = current_model {
                             model.aliases.insert(from, to);
                         }
                     }
-                    
+
                     FlashItem::Tags(tags) => {
                         current_tags = tags;
                     }
-                    
-                    FlashItem::Field(field) => {
-                        current_field = Some(field);
+
+
+                    FlashItem::Pair((field, content)) => {
+                            current_fields.push((field, content));
                     }
-                    
-                    FlashItem::Content(a) => {
-                        if let (Some(question), Some(model)) = 
-                            (current_question.take(), &mut current_model) {
-                            current_fields.push((current_field, current_content);
-                        }
-                    }
-                    
+
                     FlashItem::Comment(_) => {
                         // Ignore comments
                     }
-                     FlashItem::BlankLine(_) => {
-                         if fields.len() >= 1 {
-                             
-                         
-                          model.cards.push(FlashCard {
-fields,
-tags: current_tags.clone(),
-});
-current_tags.clear();
-                     }
-                     }
+
+                    FlashItem::BlankLine => {
+                        // Blank line indicates end of current card
+                        if !current_fields.is_empty() {
+                            if let Some(ref mut model) = current_model {
+                                model.cards.push(FlashCard {
+                                    fields: current_fields.clone(),
+                                    tags: current_tags.clone(),
+                                });
+                                current_fields.clear();
+                                current_tags.clear();
+                            }
+                        }
+                    }
                 }
             }
 
-            // Don't forget the last model
-            if let Some(model) = current_model {
+            // Don't forget the last model and card
+            if let Some(mut model) = current_model {
+                if !current_fields.is_empty() {
+                    model.cards.push(FlashCard {
+                        fields: current_fields,
+                        tags: current_tags,
+                    });
+                }
                 models.push(model);
             }
 
@@ -226,25 +236,29 @@ current_tags.clear();
 }
 
 fn main() {
-    let example_content = include_str!("/home/miles/Downloads/oh/example.flash").replace("\n\n", "\n");
+    // Load config first
+    let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
+    let config: Config = toml::from_str(&example_config).unwrap();
 
-    let parse_result = parser().parse(&example_content);
-    
+    let example_content = include_str!("/home/miles/Downloads/oh/example.flash");
+
+    let parse_result = parser(&config).parse(&example_content);
+
     match parse_result.into_result() {
         Ok(models) => {
             for model in models {
                 println!("Note Model: {}", model.name);
-                
+
                 if !model.aliases.is_empty() {
                     println!("  Aliases:");
                     for (from, to) in &model.aliases {
                         println!("    {} -> {}", from, to);
                     }
                 }
-                
+
                 println!("  Cards:");
                 for card in &model.cards {
-                    println!("    Q: {:?}", card.fields);
+                    println!("    Fields: {:?}", card.fields);
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
                     }
@@ -253,7 +267,7 @@ fn main() {
                 println!("---");
             }
         }
-        
+
         Err(errors) => {
             eprintln!("Parsing errors:");
             for error in errors {
