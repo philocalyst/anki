@@ -1,6 +1,6 @@
 use chumsky::prelude::*;
-use std::collections::HashMap;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
@@ -31,7 +31,7 @@ pub struct Config {
     pub name: String,
     pub tags: Vec<String>,
     pub sort_field: String,
-    
+
     // this corresponds to the `[defaults]` table
     pub defaults: Defaults,
 
@@ -139,14 +139,7 @@ fn parser<'a>(
     let blank_line = text::newline().to(FlashItem::BlankLine);
 
     // Line parser
-    let line = choice((
-        note_model,
-        alias,
-        tags,
-        pair,
-        comment,
-        blank_line,
-    ));
+    let line = choice((note_model, alias, tags, pair, comment, blank_line));
 
     // Full parser
     line.repeated()
@@ -195,11 +188,13 @@ fn parser<'a>(
                     FlashItem::Pair((field, content)) => {
                         // If we have a store of alises, and none of them match, then there's an issue!!
                         if let Some(ref model) = current_model {
-             if !config.fields.iter().any(|f| f.name.as_str() == field) && model.aliases.get(&field).is_none() {
-let error =                 format!("Unknown field: {}", field);
-                 println!("{}",error);
-                 }
-                 }
+                            if !config.fields.iter().any(|f| f.name.as_str() == field)
+                                && model.aliases.get(&field).is_none()
+                            {
+                                let error = format!("Unknown field: {}", field);
+                                println!("{}", error);
+                            }
+                        }
                         current_fields.push((field, content));
                     }
 
@@ -262,7 +257,7 @@ fn main() {
                 println!("  Cards:");
                 for card in &model.cards {
                     for field in card.fields.clone() {
-                    println!("{} : {}", field.0, field.1);
+                        println!("{} : {}", field.0, field.1);
                     }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
