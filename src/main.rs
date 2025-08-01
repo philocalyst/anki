@@ -273,6 +273,12 @@ fn parser<'a>(
 }
 
 fn main() {
+fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
+    let p = path.as_ref();
+    // is_dir() will return false if it doesn't exist or isn't a dir
+    p.is_dir() && p.extension().and_then(|e| e.to_str()) == Some("deck")
+}
+
     // Load config first
     let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
     let config: Config = toml::from_str(&example_config).unwrap();
