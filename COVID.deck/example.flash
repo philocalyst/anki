@@ -1,6 +1,12 @@
+
+
+
+
 =Basic=
-alias Question to Q
-alias Answer to A
+alias Q to Question
+alias A to Answer
+
+QQ:
 
 ["Biology", "Covid-19", "Health"]
 Question: HII
@@ -10,6 +16,3 @@ Answer: YEPPP
 Q:
 A:
 
-=Complex=
-Question:
-Answer:

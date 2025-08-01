@@ -1,12 +1,11 @@
-# -- metadata --------------------------------------------------------------
 schema_version = "1.0"
 
 name   = "Cloze with Source"
 tags   = ["statistics"]
-sortf  = 0   # use field index 0 ("Text") for sorting
+sort_field  = "Text"   # use field index 0 ("Text") for sorting
 
 # this controls ordering in Anki’s editor
-field_order = ["Text", "Extra", "Source"]
+# REMOVE THIS LINE: fields = ["Text", "Extra", "Source"]
 
 # defaults for all fields
 [defaults]
@@ -14,32 +13,20 @@ font = "Arial"
 size = 20
 rtl  = false
 
-# per-field overrides
+# per-field overrides (none of these need to be specified)
 [[fields]]
-name   = "Text"
-ord    = 0
+name   = "Question"
 sticky = true
 media  = []
 
 [[fields]]
-name   = "Extra"
-ord    = 1
-sticky = false
-media  = []
-
-[[fields]]
-name   = "Source"
-ord    = 2
+name   = "Answer"
 sticky = true
 media  = []
 
 # controls which template is shown first
 template_order = ["Cloze"]
 
-# array-of-tables: one block per template
 [[templates]]
 name            = "Cloze"
-ord             = 0
 required_fields = ["Text"]
-
-
