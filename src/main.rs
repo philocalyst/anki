@@ -292,6 +292,27 @@ fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
     .into_iter()
     .find(|dir| is_deck_dir(dir)).unwrap();
 
+    // Get the models and flashcards in the deck
+    let mut models = Vec::new();
+    let mut cards = Vec::new();
+    for entry in fs::read_dir(deck)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            models.push(entry.path());
+        } else if entry.path().extension().and_then(|ext| ext.to_str()) == Some("flash") {
+            cards.push(entry.path());
+        }
+    }
+
+    let mut config = PathBuf::new();
+
+    for entry in fs::read_dir(models[0].clone())? {
+        let entry = entry?.path();
+        if entry.to_str() == Some("config.toml") {
+            config = entry;
+        }
+    }
+
     // Load config first
     let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
     let config: Config = toml::from_str(&example_config).unwrap();
