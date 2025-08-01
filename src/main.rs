@@ -205,7 +205,7 @@ fn parser<'a>(
 
                         let mut colors = ColorGenerator::new();
 
-                        let path = "/home/miles/Downloads/oh/example.flash";
+                        let path = "/home/miles/Downloads/oh/COVID.deck/example.flash";
                         let content = fs::read_to_string(path).unwrap();
 
                         // pick some colours
@@ -326,7 +326,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for entry in fs::read_dir(models[0].clone())? {
         let entry = entry?.path();
-        if entry.to_str() == Some("config.toml") {
+        if entry.to_str().unwrap().contains("config.toml") {
             config = entry;
         }
     }
