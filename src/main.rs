@@ -279,6 +279,7 @@ fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
     p.is_dir() && p.extension().and_then(|e| e.to_str()) == Some("deck")
 }
 
+fn main() -> Result<(), Box<dyn Error>> {
     // Check for a deck
     let mut dirs = Vec::new();
     for entry in fs::read_dir(".")? {
@@ -314,10 +315,10 @@ fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
     }
 
     // Load config first
-    let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
+    let example_config = fs::read_to_string(config)?;
     let config: Config = toml::from_str(&example_config).unwrap();
 
-    let example_content = include_str!("/home/miles/Downloads/oh/example.flash");
+    let example_content = fs::read_to_string(cards[0].clone())?;
 
     let parse_result = parser(&config).parse(&example_content);
 
@@ -354,4 +355,6 @@ fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
             }
         }
     }
+
+    Ok(())
 }
