@@ -219,9 +219,13 @@ fn parser<'a>(
                                     .with_message("Unknown field!")
                                     .with_label(
                                         Label::new((path, span.into_range()))
-                                            .with_message(format!("Is this a typo?"))
+                                            .with_message(format!("No field named '{}'", field))
                                             .with_color(a),
                                     )
+                                     .with_note(format!(
+                                            "Available fields are {}",
+                                            format!("{:?}", config.fields.iter().map(|item| item.name.clone()).collect::<Vec<_>>()).fg(out)
+                                        ))
                                     .finish();
 
                                 // write it out
