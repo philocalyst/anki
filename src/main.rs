@@ -1,11 +1,11 @@
-use chumsky::prelude::*;
-use std::ops::Range;
 use ariadne::Source;
-use std::io;
-use std::io::Write;
-use std::fs;
+use chumsky::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::io::Write;
+use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
@@ -193,38 +193,40 @@ fn parser<'a>(
                     FlashItem::Pair((field, content)) => {
                         use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
 
-    let mut colors = ColorGenerator::new();
+                        let mut colors = ColorGenerator::new();
 
-    let path = "/home/miles/Downloads/oh/example.flash";
-    let content = fs::read_to_string(path).unwrap();
+                        let path = "/home/miles/Downloads/oh/example.flash";
+                        let content = fs::read_to_string(path).unwrap();
 
-    // pick some colours
-    let a = colors.next();
-    let b = colors.next();
-    let out = Color::Fixed(81);
+                        // pick some colours
+                        let a = colors.next();
+                        let b = colors.next();
+                        let out = Color::Fixed(81);
 
-                         if let Some(ref model) = current_model {
-        if !config.fields.iter().any(|f| f.name == field)
-            && model.aliases.get(&field).is_none()
-        {
-            let yep: SimpleSpan = extra.span();
-            let span: Range<usize> = yep.into_range();
-            // build the error
-            let report = Report::build(ReportKind::Error, (path, span.clone()))
-                .with_code(3)
-                .with_message("Unknown field!")
-                .with_label(
-                    Label::new((path, span))
-                        .with_message(format!("Is this a typo?"))
-                        .with_color(a),
-                )
-                .finish();
+                        if let Some(ref model) = current_model {
+                            if !config.fields.iter().any(|f| f.name == field)
+                                && model.aliases.get(&field).is_none()
+                            {
+                                let yep: SimpleSpan = extra.span();
+                                let span: Range<usize> = yep.into_range();
+                                // build the error
+                                let report = Report::build(ReportKind::Error, (path, span.clone()))
+                                    .with_code(3)
+                                    .with_message("Unknown field!")
+                                    .with_label(
+                                        Label::new((path, span))
+                                            .with_message(format!("Is this a typo?"))
+                                            .with_color(a),
+                                    )
+                                    .finish();
 
-            // write it out
-            let mut stdout = io::stdout();
-            report.write((path, Source::from(&content)), &mut stdout).unwrap();
-        }
-    }
+                                // write it out
+                                let mut stdout = io::stdout();
+                                report
+                                    .write((path, Source::from(&content)), &mut stdout)
+                                    .unwrap();
+                            }
+                        }
                         current_fields.push((field, content));
                     }
 
