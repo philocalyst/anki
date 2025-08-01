@@ -211,7 +211,6 @@ fn parser<'a>(
                             if !config.fields.iter().any(|f| f.name == field)
                                 && model.aliases.get(&field).is_none()
                             {
-                                println!("{:?}", current_model);
                                 let range: Range<usize> = span.into_range();
                                 // build the error
                                 let report = Report::build(ReportKind::Error, (path, current_model.1.clone().unwrap()))
@@ -223,8 +222,8 @@ fn parser<'a>(
                                             .with_color(a),
                                     )
                                      .with_note(format!(
-                                            "Available fields are {}",
-                                            format!("{:?}", config.fields.iter().map(|item| item.name.clone()).collect::<Vec<_>>()).fg(out)
+                                            "For the model {}, the available fields are {}",
+                                            model.name.clone().fg(out), format!("{:?}", config.fields.iter().map(|item| item.name.clone()).collect::<Vec<_>>()).fg(out)
                                         ))
                                     .finish();
 
