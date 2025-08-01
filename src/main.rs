@@ -144,7 +144,11 @@ fn parser<'a>(
     let blank_line = text::newline().to(FlashItem::BlankLine);
 
     // Line parser
-    let line = choice((note_model, alias, tags, pair, comment, blank_line));
+    let line = choice((note_model, alias, tags, pair, comment, blank_line))
+    .map_with(|item, extra| {
+        let span: SimpleSpan = extra.span(); // Get the span for the parsed item
+        (item, span) // Return the item along with its span
+    });
 
     // Full parser
     line.repeated()
@@ -156,11 +160,9 @@ fn parser<'a>(
             let mut current_tags: Vec<String> = Vec::new();
             let mut current_fields: Vec<(String, String)> = Vec::new();
 
-            let span: SimpleSpan = extra.span();
-
             for item in items {
                 match item {
-                    FlashItem::NoteModel(name) => {
+                    (FlashItem::NoteModel(name), span) => {
                         // Save previous model if exists
                         if let Some(mut model) = current_model.0.take() {
                             // Add any remaining card
@@ -182,17 +184,17 @@ fn parser<'a>(
                         }), Some(span.into_range()));
                     }
 
-                    FlashItem::Alias { from, to } => {
+(                    FlashItem::Alias { from, to }, _) => {
                         if let Some(ref mut model) = current_model.0 {
                             model.aliases.insert(from, to);
                         }
                     }
 
-                    FlashItem::Tags(tags) => {
+                    (FlashItem::Tags(tags), _) => {
                         current_tags = tags;
                     }
 
-                    FlashItem::Pair((field, content)) => {
+ (                   FlashItem::Pair((field, content)), span)=> {
                         use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
 
                         let mut colors = ColorGenerator::new();
@@ -216,7 +218,7 @@ fn parser<'a>(
                                     .with_code(3)
                                     .with_message("Unknown field!")
                                     .with_label(
-                                        Label::new((path, range))
+                                        Label::new((path, span.into_range()))
                                             .with_message(format!("Is this a typo?"))
                                             .with_color(a),
                                     )
@@ -232,11 +234,11 @@ fn parser<'a>(
                         current_fields.push((field, content));
                     }
 
-                    FlashItem::Comment(_) => {
+(                    FlashItem::Comment(_), _) => {
                         // Ignore comments
                     }
 
-                    FlashItem::BlankLine => {
+                    (FlashItem::BlankLine, _) => {
                         // Blank line indicates end of current card
                         if !current_fields.is_empty() {
                             if let Some(ref mut model) = current_model.0 {
