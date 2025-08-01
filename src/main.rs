@@ -279,6 +279,19 @@ fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
     p.is_dir() && p.extension().and_then(|e| e.to_str()) == Some("deck")
 }
 
+    // Check for a deck
+    let mut dirs = Vec::new();
+    for entry in fs::read_dir(".")? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            dirs.push(entry.path());
+        }
+    }
+
+    let deck: PathBuf = dirs
+    .into_iter()
+    .find(|dir| is_deck_dir(dir)).unwrap();
+
     // Load config first
     let example_config = include_str!("/home/miles/Downloads/oh/src/ClozeWithSource/config.toml");
     let config: Config = toml::from_str(&example_config).unwrap();
