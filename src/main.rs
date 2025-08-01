@@ -1,4 +1,7 @@
 use ariadne::Source;
+use std::path::PathBuf;
+use std::path::Path;
+use std::error::Error;
 use chumsky::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -144,11 +147,11 @@ fn parser<'a>(
     let blank_line = text::newline().to(FlashItem::BlankLine);
 
     // Line parser
-    let line = choice((note_model, alias, tags, pair, comment, blank_line))
-    .map_with(|item, extra| {
-        let span: SimpleSpan = extra.span(); // Get the span for the parsed item
-        (item, span) // Return the item along with its span
-    });
+    let line =
+        choice((note_model, alias, tags, pair, comment, blank_line)).map_with(|item, extra| {
+            let span: SimpleSpan = extra.span(); // Get the span for the parsed item
+            (item, span) // Return the item along with its span
+        });
 
     // Full parser
     line.repeated()
@@ -177,14 +180,17 @@ fn parser<'a>(
                             models.push(model);
                         }
 
-                        current_model = (Some(NoteModel {
-                            name,
-                            aliases: HashMap::new(),
-                            cards: Vec::new(),
-                        }), Some(span.into_range()));
+                        current_model = (
+                            Some(NoteModel {
+                                name,
+                                aliases: HashMap::new(),
+                                cards: Vec::new(),
+                            }),
+                            Some(span.into_range()),
+                        );
                     }
 
-(                    FlashItem::Alias { from, to }, _) => {
+                    (FlashItem::Alias { from, to }, _) => {
                         if let Some(ref mut model) = current_model.0 {
                             model.aliases.insert(from, to);
                         }
@@ -194,7 +200,7 @@ fn parser<'a>(
                         current_tags = tags;
                     }
 
- (                   FlashItem::Pair((field, content)), span)=> {
+                    (FlashItem::Pair((field, content)), span) => {
                         use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
 
                         let mut colors = ColorGenerator::new();
@@ -213,19 +219,31 @@ fn parser<'a>(
                             {
                                 let range: Range<usize> = span.into_range();
                                 // build the error
-                                let report = Report::build(ReportKind::Error, (path, current_model.1.clone().unwrap()))
-                                    .with_code(3)
-                                    .with_message("Unknown field!")
-                                    .with_label(
-                                        Label::new((path, span.into_range()))
-                                            .with_message(format!("No field named '{}'", field))
-                                            .with_color(a),
+                                let report = Report::build(
+                                    ReportKind::Error,
+                                    (path, current_model.1.clone().unwrap()),
+                                )
+                                .with_code(3)
+                                .with_message("Unknown field!")
+                                .with_label(
+                                    Label::new((path, span.into_range()))
+                                        .with_message(format!("No field named '{}'", field))
+                                        .with_color(a),
+                                )
+                                .with_note(format!(
+                                    "For the model {}, the available fields are {}",
+                                    model.name.clone().fg(out),
+                                    format!(
+                                        "{:?}",
+                                        config
+                                            .fields
+                                            .iter()
+                                            .map(|item| item.name.clone())
+                                            .collect::<Vec<_>>()
                                     )
-                                     .with_note(format!(
-                                            "For the model {}, the available fields are {}",
-                                            model.name.clone().fg(out), format!("{:?}", config.fields.iter().map(|item| item.name.clone()).collect::<Vec<_>>()).fg(out)
-                                        ))
-                                    .finish();
+                                    .fg(out)
+                                ))
+                                .finish();
 
                                 // write it out
                                 let mut stdout = io::stdout();
@@ -237,7 +255,7 @@ fn parser<'a>(
                         current_fields.push((field, content));
                     }
 
-(                    FlashItem::Comment(_), _) => {
+                    (FlashItem::Comment(_), _) => {
                         // Ignore comments
                     }
 
@@ -272,7 +290,6 @@ fn parser<'a>(
         })
 }
 
-fn main() {
 fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
     let p = path.as_ref();
     // is_dir() will return false if it doesn't exist or isn't a dir
