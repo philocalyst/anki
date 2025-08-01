@@ -152,15 +152,17 @@ fn parser<'a>(
         .then_ignore(end())
         .map_with(|items, extra| {
             let mut models = Vec::new();
-            let mut current_model: Option<NoteModel> = None;
+            let mut current_model: (Option<NoteModel>, Option<Range<usize>>) = (None, None);
             let mut current_tags: Vec<String> = Vec::new();
             let mut current_fields: Vec<(String, String)> = Vec::new();
+
+            let span: SimpleSpan = extra.span();
 
             for item in items {
                 match item {
                     FlashItem::NoteModel(name) => {
                         // Save previous model if exists
-                        if let Some(mut model) = current_model.take() {
+                        if let Some(mut model) = current_model.0.take() {
                             // Add any remaining card
                             if !current_fields.is_empty() {
                                 model.cards.push(FlashCard {
@@ -173,15 +175,15 @@ fn parser<'a>(
                             models.push(model);
                         }
 
-                        current_model = Some(NoteModel {
+                        current_model = (Some(NoteModel {
                             name,
                             aliases: HashMap::new(),
                             cards: Vec::new(),
-                        });
+                        }), Some(span.into_range()));
                     }
 
                     FlashItem::Alias { from, to } => {
-                        if let Some(ref mut model) = current_model {
+                        if let Some(ref mut model) = current_model.0 {
                             model.aliases.insert(from, to);
                         }
                     }
@@ -203,18 +205,18 @@ fn parser<'a>(
                         let b = colors.next();
                         let out = Color::Fixed(81);
 
-                        if let Some(ref model) = current_model {
+                        if let Some(ref model) = current_model.0 {
                             if !config.fields.iter().any(|f| f.name == field)
                                 && model.aliases.get(&field).is_none()
                             {
-                                let yep: SimpleSpan = extra.span();
-                                let span: Range<usize> = yep.into_range();
+                                println!("{:?}", current_model);
+                                let range: Range<usize> = span.into_range();
                                 // build the error
-                                let report = Report::build(ReportKind::Error, (path, span.clone()))
+                                let report = Report::build(ReportKind::Error, (path, current_model.1.clone().unwrap()))
                                     .with_code(3)
                                     .with_message("Unknown field!")
                                     .with_label(
-                                        Label::new((path, span))
+                                        Label::new((path, range))
                                             .with_message(format!("Is this a typo?"))
                                             .with_color(a),
                                     )
@@ -237,7 +239,7 @@ fn parser<'a>(
                     FlashItem::BlankLine => {
                         // Blank line indicates end of current card
                         if !current_fields.is_empty() {
-                            if let Some(ref mut model) = current_model {
+                            if let Some(ref mut model) = current_model.0 {
                                 model.cards.push(FlashCard {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
@@ -251,7 +253,7 @@ fn parser<'a>(
             }
 
             // Don't forget the last model and card
-            if let Some(mut model) = current_model {
+            if let Some(mut model) = current_model.0 {
                 if !current_fields.is_empty() {
                     model.cards.push(FlashCard {
                         fields: current_fields,
