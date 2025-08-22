@@ -244,6 +244,7 @@ fn parser<'a>(
                                 report
                                     .write((path, Source::from(&path_content)), &mut stdout)
                                     .unwrap();
+                                continue;
                             }
                         }
                         current_fields.push((field, content));
