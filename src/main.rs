@@ -11,8 +11,14 @@ use std::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
-    pub fields: Vec<(String, String)>,
+    pub fields: Vec<NoteField>,
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NoteField {
+    name: String,
+    content: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,7 +161,7 @@ fn parser<'a>(
             let mut models = Vec::new();
             let mut current_model: (Option<NoteModel>, Option<Range<usize>>) = (None, None);
             let mut current_tags: Vec<String> = Vec::new();
-            let mut current_fields: Vec<(String, String)> = Vec::new();
+            let mut current_fields: Vec<NoteField> = Vec::new();
 
             for item in items {
                 match item {
@@ -194,7 +200,7 @@ fn parser<'a>(
                         current_tags = tags;
                     }
 
-                    (FlashItem::Pair((field, content)), span) => {
+                    (FlashItem::Pair((name, content)), span) => {
                         use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
 
                         let mut colors = ColorGenerator::new();
@@ -208,8 +214,8 @@ fn parser<'a>(
                         let out = Color::Fixed(81);
 
                         if let Some(ref model) = current_model.0 {
-                            if !config.fields.iter().any(|f| f.name == field)
-                                && model.aliases.get(&field).is_none()
+                            if !config.fields.iter().any(|f| f.name == name)
+                                && model.aliases.get(&name).is_none()
                             {
                                 let range: Range<usize> = span.into_range();
                                 // build the error
@@ -221,7 +227,7 @@ fn parser<'a>(
                                 .with_message("Unknown field!")
                                 .with_label(
                                     Label::new((path, range))
-                                        .with_message(format!("No field named '{}'", field))
+                                        .with_message(format!("No field named '{}'", name))
                                         .with_color(a),
                                 )
                                 .with_note(format!(
@@ -247,7 +253,7 @@ fn parser<'a>(
                                 continue;
                             }
                         }
-                        current_fields.push((field, content));
+                        current_fields.push(NoteField { name, content });
                     }
 
                     (FlashItem::Comment(_), _) => {
@@ -347,7 +353,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("  Cards:");
                 for card in &model.cards {
                     for field in card.fields.clone() {
-                        println!("{} : {}", field.0, field.1);
+                        println!("{} : {}", field.name, field.content);
                     }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
