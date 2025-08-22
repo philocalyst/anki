@@ -1,14 +1,13 @@
 use ariadne::Source;
 use chumsky::prelude::*;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fs;
-use std::io;
-use std::io::Write;
-use std::ops::Range;
-use std::path::Path;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    error::Error,
+    fs, io,
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
@@ -78,9 +77,6 @@ fn parser<'a>(
     // Whitespace parser (excluding newlines), ignored for padding/ignoring
     let inline_whitespace = one_of(" \t").repeated().ignored();
 
-    // Get valid field names from config
-    let valid_fields: Vec<String> = config.fields.iter().map(|f| f.name.clone()).collect();
-
     let note_model = just('=')
         .ignore_then(none_of('=').repeated().collect::<String>())
         .then_ignore(just('='))
@@ -120,7 +116,7 @@ fn parser<'a>(
 
     let field = text::ident()
         .then_ignore(just(':'))
-        .try_map(|field_name: &str, span| {
+        .try_map(|field_name: &str, _| {
             if config.fields.iter().any(|f| f.name.as_str() == field_name) {
                 Ok(field_name.to_string())
             } else {
@@ -155,7 +151,7 @@ fn parser<'a>(
     line.repeated()
         .collect::<Vec<_>>()
         .then_ignore(end())
-        .map_with(|items, extra| {
+        .map_with(|items, _| {
             let mut models = Vec::new();
             let mut current_model: (Option<NoteModel>, Option<Range<usize>>) = (None, None);
             let mut current_tags: Vec<String> = Vec::new();
@@ -208,7 +204,7 @@ fn parser<'a>(
 
                         // pick some colours
                         let a = colors.next();
-                        let b = colors.next();
+                        // let b = colors.next();
                         let out = Color::Fixed(81);
 
                         if let Some(ref model) = current_model.0 {
@@ -224,7 +220,7 @@ fn parser<'a>(
                                 .with_code(3)
                                 .with_message("Unknown field!")
                                 .with_label(
-                                    Label::new((path, span.into_range()))
+                                    Label::new((path, range))
                                         .with_message(format!("No field named '{}'", field))
                                         .with_color(a),
                                 )
