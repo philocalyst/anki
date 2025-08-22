@@ -1,14 +1,14 @@
 use ariadne::Source;
-use std::path::PathBuf;
-use std::path::Path;
-use std::error::Error;
 use chumsky::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs;
 use std::io;
 use std::io::Write;
 use std::ops::Range;
+use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
@@ -205,8 +205,8 @@ fn parser<'a>(
 
                         let mut colors = ColorGenerator::new();
 
-                        let path = "/home/miles/Downloads/oh/COVID.deck/example.flash";
-                        let content = fs::read_to_string(path).unwrap();
+                        let path = "/home/miles/Downloads/anki/COVID.deck/example.flash";
+                        let path_content = fs::read_to_string(path).unwrap();
 
                         // pick some colours
                         let a = colors.next();
@@ -248,7 +248,7 @@ fn parser<'a>(
                                 // write it out
                                 let mut stdout = io::stdout();
                                 report
-                                    .write((path, Source::from(&content)), &mut stdout)
+                                    .write((path, Source::from(&path_content)), &mut stdout)
                                     .unwrap();
                             }
                         }
@@ -306,9 +306,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let deck: PathBuf = dirs
-    .into_iter()
-    .find(|dir| is_deck_dir(dir)).unwrap();
+    let deck: PathBuf = dirs.into_iter().find(|dir| is_deck_dir(dir)).unwrap();
 
     // Get the models and flashcards in the deck
     let mut models = Vec::new();
@@ -353,9 +351,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 println!("  Cards:");
                 for card in &model.cards {
-                    // for field in card.fields.clone() {
-                    //     println!("{} : {}", field.0, field.1);
-                    // }
+                    for field in card.fields.clone() {
+                        println!("{} : {}", field.0, field.1);
+                    }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
                     }
