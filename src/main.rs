@@ -106,18 +106,16 @@ fn parser<'a>(
         )
         .map(|(from, to)| FlashItem::Alias { from, to });
 
-    // Tags parser (["Biology", "Covid-19", "Health"])
-    let string_literal = just('"')
-        .ignore_then(none_of('"').repeated().collect::<String>())
-        .then_ignore(just('"'));
+    let tag = none_of(",[]")
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .map(|s: String| s.trim().to_string());
 
-    let tags = just('[')
-        .ignore_then(
-            string_literal
-                .separated_by(just(',').padded_by(inline_whitespace.clone()))
-                .collect::<Vec<_>>(),
-        )
-        .then_ignore(just(']'))
+    let tags = tag
+        .separated_by(just(',').padded())
+        .collect::<Vec<_>>() // <-- required; otherwise output is ()
+        .delimited_by(just('['), just(']'))
         .map(FlashItem::Tags);
 
     let field = text::ident()
