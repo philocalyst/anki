@@ -9,6 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::crowd_anki::CrowdAnkiEntity;
+
 mod crowd_anki;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -448,6 +450,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+
+    let content: CrowdAnkiEntity = serde_json::from_str(include_str!(
+        "/home/miles/Downloads/anki/covid-19-anki-deck/deck.json"
+    ))?;
+
+    dbg!(&content);
 
     Ok(())
 }
