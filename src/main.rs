@@ -108,6 +108,25 @@ fn parser<'a>(
         )
         .map(|(from, to)| FlashItem::Alias { from, to });
 
+    // Complete cloze parser
+    let cloze_id = text::int(10).map(|s: &str| s.to_string().parse::<u32>().unwrap());
+
+    let cloze_content = none_of(['|', '}', '\n'])
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .map(|s| s.trim().to_string());
+
+    let hint = just('|').ignore_then(cloze_content.clone()).or_not();
+
+    let cloze = just('#')
+        .ignore_then(cloze_id)
+        .then_ignore(just('{'))
+        .then(cloze_content)
+        .then(hint)
+        .then_ignore(just('}'))
+        .map(|((id, answer), hint)| TextElement::Cloze(Cloze { id, answer, hint }));
+
     let tag = none_of(",[]")
         .repeated()
         .at_least(1)
@@ -130,8 +149,44 @@ fn parser<'a>(
             }
         });
 
-    // Content parser - content that follows a field
-    let content = none_of('\n').repeated().collect::<String>();
+    // Updated content parser that handles mixed text and cloze deletions
+    let regular_text = none_of(['#', '\n'])
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .map(TextElement::Text);
+
+    let content_element = cloze.or(regular_text);
+
+    let content = content_element
+        .repeated()
+        .collect::<Vec<TextElement>>()
+        .validate(|elements, _extra, emitter| {
+            // Merge adjacent text elements for cleaner output
+            let mut merged = Vec::new();
+            let mut current_text = String::new();
+
+            for element in elements {
+                match element {
+                    TextElement::Text(text) => {
+                        current_text.push_str(&text);
+                    }
+                    TextElement::Cloze(cloze) => {
+                        if !current_text.is_empty() {
+                            merged.push(TextElement::Text(current_text.clone()));
+                            current_text.clear();
+                        }
+                        merged.push(TextElement::Cloze(cloze));
+                    }
+                }
+            }
+
+            if !current_text.is_empty() {
+                merged.push(TextElement::Text(current_text));
+            }
+
+            merged
+        });
 
     let pair = field
         .then_ignore(inline_whitespace.clone())
@@ -307,6 +362,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    dbg!(&dirs);
     let deck: PathBuf = dirs.into_iter().find(|dir| is_deck_dir(dir)).unwrap();
 
     // Get the models and flashcards in the deck
@@ -353,7 +409,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("  Cards:");
                 for card in &model.cards {
                     for field in card.fields.clone() {
-                        println!("{} : {}", field.name, field.content);
+                        println!("{} : {:?}", field.name, field.content);
                     }
                     if !card.tags.is_empty() {
                         println!("    Tags: {:?}", card.tags);
