@@ -44,9 +44,15 @@ pub enum TextElement {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlashItem {
     NoteModel(String),
-    Alias { from: String, to: String },
+    Alias {
+        from: String,
+        to: String,
+    },
     Tags(Vec<String>),
-    Pair((String, Vec<TextElement>)), // Updated to use TextElement
+    Field {
+        name: String,
+        content: Vec<TextElement>,
+    },
     Comment(String),
     BlankLine,
 }
@@ -204,7 +210,7 @@ fn parser<'a>(
     let pair = field
         .then_ignore(inline_whitespace.clone())
         .then(content)
-        .map(|(field, content)| FlashItem::Pair((field, content)));
+        .map(|(name, content)| FlashItem::Field { name, content });
 
     // Comment parser (// comment)
     let comment = just("//")
@@ -268,7 +274,7 @@ fn parser<'a>(
                         current_tags = tags;
                     }
 
-                    (FlashItem::Pair((name, content)), span) => {
+                    (FlashItem::Field { name, content }, span) => {
                         use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
 
                         let mut colors = ColorGenerator::new();
