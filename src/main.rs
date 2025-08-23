@@ -18,7 +18,7 @@ pub struct FlashCard {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NoteField {
     name: String,
-    content: String,
+    content: Vec<TextElement>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,11 +29,24 @@ pub struct NoteModel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Cloze {
+    pub id: u32,
+    pub answer: String,
+    pub hint: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextElement {
+    Text(String),
+    Cloze(Cloze),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum FlashItem {
     NoteModel(String),
     Alias { from: String, to: String },
     Tags(Vec<String>),
-    Pair((String, String)),
+    Pair((String, Vec<TextElement>)), // Updated to use TextElement
     Comment(String),
     BlankLine,
 }
