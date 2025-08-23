@@ -9,6 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod crowd_anki;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlashCard {
     pub fields: Vec<NoteField>,

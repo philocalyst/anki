@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum NoteModelType {
     Standard,
