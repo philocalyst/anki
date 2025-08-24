@@ -9,12 +9,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::crowd_anki::CrowdAnkiEntity;
+use crate::crowd_anki::{CrowdAnkiEntity, NoteModelType};
 
 mod crowd_anki;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlashCard {
+pub struct Note {
     pub fields: Vec<NoteField>,
     pub tags: Vec<String>,
 }
@@ -28,8 +28,21 @@ pub struct NoteField {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NoteModel {
     pub name: String,
+    pub css: String,
+    pub templates: Vec<Template>,
+
+    pub latex_pre: Option<String>,
+    pub latex_post: Option<String>,
+
+    pub sort_field: Option<i32>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct P_NoteModel {
+    pub name: String,
     pub aliases: HashMap<String, String>,
-    pub cards: Vec<FlashCard>,
+    pub cards: Vec<Note>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,15 +107,21 @@ pub struct Field {
     pub media: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, PartialEq, Debug)]
 pub struct Template {
     pub name: String,
-    pub required_fields: Vec<String>,
+    pub order: i32,
+
+    pub question_format: String,
+    pub answer_format: String,
+
+    pub browser_question_format: String,
+    pub browser_answer_format: String,
 }
 
 fn parser<'a>(
     config: &'a Config,
-) -> impl Parser<'a, &'a str, Vec<NoteModel>, extra::Err<Rich<'a, char>>> + Clone {
+) -> impl Parser<'a, &'a str, Vec<P_NoteModel>, extra::Err<Rich<'a, char>>> + Clone {
     // Whitespace parser (excluding newlines), ignored for padding/ignoring
     let inline_whitespace = one_of(" \t").repeated().ignored();
 
@@ -237,7 +256,7 @@ fn parser<'a>(
         .then_ignore(end())
         .map_with(|items, _| {
             let mut models = Vec::new();
-            let mut current_model: (Option<NoteModel>, Option<Range<usize>>) = (None, None);
+            let mut current_model: (Option<P_NoteModel>, Option<Range<usize>>) = (None, None);
             let mut current_tags: Vec<String> = Vec::new();
             let mut current_fields: Vec<NoteField> = Vec::new();
 
@@ -248,7 +267,7 @@ fn parser<'a>(
                         if let Some(mut model) = current_model.0.take() {
                             // Add any remaining card
                             if !current_fields.is_empty() {
-                                model.cards.push(FlashCard {
+                                model.cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
                                 });
@@ -259,7 +278,7 @@ fn parser<'a>(
                         }
 
                         current_model = (
-                            Some(NoteModel {
+                            Some(P_NoteModel {
                                 name,
                                 aliases: HashMap::new(),
                                 cards: Vec::new(),
@@ -342,7 +361,7 @@ fn parser<'a>(
                         // Blank line indicates end of current card
                         if !current_fields.is_empty() {
                             if let Some(ref mut model) = current_model.0 {
-                                model.cards.push(FlashCard {
+                                model.cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
                                 });
@@ -357,7 +376,7 @@ fn parser<'a>(
             // Don't forget the last model and card
             if let Some(mut model) = current_model.0 {
                 if !current_fields.is_empty() {
-                    model.cards.push(FlashCard {
+                    model.cards.push(Note {
                         fields: current_fields,
                         tags: current_tags,
                     });
@@ -450,12 +469,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-
-    let content: CrowdAnkiEntity = serde_json::from_str(include_str!(
-        "/home/miles/Downloads/anki/covid-19-anki-deck/deck.json"
-    ))?;
-
-    dbg!(&content);
 
     Ok(())
 }
