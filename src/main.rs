@@ -36,7 +36,6 @@ pub struct NoteModel {
     pub css: String,
 
     pub fields: Vec<Field>,
-    pub templates: Vec<Template>,
 
     #[serde(skip)]
     pub latex_pre: Option<String>,
