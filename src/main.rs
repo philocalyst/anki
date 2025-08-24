@@ -61,12 +61,6 @@ pub struct NoteModel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct P_NoteModel {
-    pub name: String,
-    pub aliases: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Cloze {
     pub id: u32,
     pub answer: String,
@@ -210,8 +204,8 @@ impl NoteModel {
 }
 
 fn parser<'a>(
-    config: &'a NoteModel,
-) -> impl Parser<'a, &'a str, Vec<Note>, extra::Err<Rich<'a, char>>> + Clone {
+    available_models: &[NoteModel],
+) -> impl Parser<'a, &'a str, Vec<Note<'a>>, extra::Err<Rich<'a, char>>> + Clone {
     // Whitespace parser (excluding newlines), ignored for padding/ignoring
     let inline_whitespace = one_of(" \t").repeated().ignored();
 
@@ -274,7 +268,11 @@ fn parser<'a>(
     let field = text::ident()
         .then_ignore(just(':'))
         .try_map(|field_name: &str, _| {
-            if config.fields.iter().any(|f| f.name.as_str() == field_name) {
+            if available_models
+                .fields
+                .iter()
+                .any(|f| f.name.as_str() == field_name)
+            {
                 Ok(field_name.to_string())
             } else {
                 Ok(field_name.to_string())
@@ -361,7 +359,7 @@ fn parser<'a>(
                                 cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
-                                    model: config,
+                                    model: available_models,
                                 });
                                 current_fields.clear();
                                 current_tags.clear();
@@ -402,7 +400,7 @@ fn parser<'a>(
                         let out = Color::Fixed(81);
 
                         if let Some(ref model) = current_model.0 {
-                            if !config.fields.iter().any(|f| f.name == name)
+                            if !available_models.fields.iter().any(|f| f.name == name)
                                 && model.aliases.get(&name).is_none()
                             {
                                 let range: Range<usize> = span.into_range();
@@ -423,7 +421,7 @@ fn parser<'a>(
                                     model.name.clone().fg(out),
                                     format!(
                                         "{:?}",
-                                        config
+                                        available_models
                                             .fields
                                             .iter()
                                             .map(|item| item.name.clone())
@@ -455,7 +453,7 @@ fn parser<'a>(
                                 cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
-                                    model: config,
+                                    model: available_models,
                                 });
                                 current_fields.clear();
                                 current_tags.clear();
@@ -471,7 +469,7 @@ fn parser<'a>(
                     cards.push(Note {
                         fields: current_fields,
                         tags: current_tags,
-                        model: &config,
+                        model: &available_models,
                     });
                 }
                 models.push(model);
@@ -512,28 +510,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let mut config = PathBuf::new();
+    let mut all_models: Vec<NoteModel> = Vec::new();
 
-    for entry in fs::read_dir(models[0].clone())? {
-        let entry = entry?.path();
-        if entry.to_str().unwrap().contains("config.toml") {
-            config = entry;
-        }
+    for model in models.clone() {
+        let config = model.join("config.toml");
+
+        // Load config first
+        let example_config = fs::read_to_string(config)?;
+        let mut config: NoteModel = toml::from_str(&example_config).unwrap();
+
+        config.complete(Path::new(
+            "/home/miles/Downloads/anki/COVID.deck/ClozeWithSource",
+        ))?;
+
+        all_models.push(config);
     }
-
-    // Load config first
-    let example_config = fs::read_to_string(config)?;
-    let mut config: NoteModel = toml::from_str(&example_config).unwrap();
-
-    config.complete(Path::new(
-        "/home/miles/Downloads/anki/COVID.deck/ClozeWithSource",
-    ))?;
-
-    dbg!(&config);
 
     let example_content = fs::read_to_string(cards[0].clone())?;
 
-    let parse_result = parser(&config).parse(&example_content);
+    let parse_result = parser(all_models.as_slice()).parse(&example_content);
 
     match parse_result.into_result() {
         Ok(cards) => {
