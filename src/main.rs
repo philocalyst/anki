@@ -27,10 +27,12 @@ pub struct NoteField {
     content: Vec<TextElement>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NoteModel {
     pub name: String,
     pub css: String,
+
+    pub fields: Vec<Field>,
     pub templates: Vec<Template>,
 
     pub latex_pre: Option<String>,
@@ -82,20 +84,14 @@ pub enum FlashItem {
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub schema_version: Version,
-    pub name: String,
-    pub tags: Vec<String>,
-    pub sort_field: String,
 
     // this corresponds to the `[defaults]` table
     pub defaults: Defaults,
 
-    // this corresponds to the `[[fields]]` array of tables
-    pub fields: Vec<Field>,
-
-    pub template_order: Option<Vec<String>>,
-
     // this corresponds to the `[[templates]]` array of tables
     pub templates: Vec<Template>,
+
+    pub model: NoteModel,
 }
 
 #[derive(Deserialize, Debug)]
@@ -105,7 +101,7 @@ pub struct Defaults {
     pub rtl: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Field {
     pub name: String,
     pub sticky: bool,
@@ -189,7 +185,12 @@ fn parser<'a>(
     let field = text::ident()
         .then_ignore(just(':'))
         .try_map(|field_name: &str, _| {
-            if config.fields.iter().any(|f| f.name.as_str() == field_name) {
+            if config
+                .model
+                .fields
+                .iter()
+                .any(|f| f.name.as_str() == field_name)
+            {
                 Ok(field_name.to_string())
             } else {
                 Ok(field_name.to_string())
@@ -316,7 +317,7 @@ fn parser<'a>(
                         let out = Color::Fixed(81);
 
                         if let Some(ref model) = current_model.0 {
-                            if !config.fields.iter().any(|f| f.name == name)
+                            if !config.model.fields.iter().any(|f| f.name == name)
                                 && model.aliases.get(&name).is_none()
                             {
                                 let range: Range<usize> = span.into_range();
@@ -338,6 +339,7 @@ fn parser<'a>(
                                     format!(
                                         "{:?}",
                                         config
+                                            .model
                                             .fields
                                             .iter()
                                             .map(|item| item.name.clone())
