@@ -1,5 +1,6 @@
 use ariadne::Source;
 use chumsky::prelude::*;
+use semver::Version;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
@@ -76,7 +77,7 @@ pub enum FlashItem {
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub schema_version: String,
+    pub schema_version: Version,
     pub name: String,
     pub tags: Vec<String>,
     pub sort_field: String,
@@ -107,7 +108,7 @@ pub struct Field {
     pub media: Vec<String>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Template {
     pub name: String,
     pub order: i32,
