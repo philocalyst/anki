@@ -30,12 +30,17 @@ pub struct NoteField {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NoteModel {
     pub name: String,
+
+    // Anything with serde skip means I don't want it to be possible to be included in the TOML representation
+    #[serde(skip)]
     pub css: String,
 
     pub fields: Vec<Field>,
     pub templates: Vec<Template>,
 
+    #[serde(skip)]
     pub latex_pre: Option<String>,
+    #[serde(skip)]
     pub latex_post: Option<String>,
 
     pub sort_field: Option<i32>,
