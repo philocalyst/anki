@@ -16,8 +16,9 @@ use evalexpr::Node;
 mod crowd_anki;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Note {
+pub struct Note<'a> {
     pub fields: Vec<NoteField>,
+    pub model: &'a NoteModel,
     pub tags: Vec<String>,
 }
 
@@ -63,7 +64,6 @@ pub struct NoteModel {
 pub struct P_NoteModel {
     pub name: String,
     pub aliases: HashMap<String, String>,
-    pub cards: Vec<Note>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -211,7 +211,7 @@ impl NoteModel {
 
 fn parser<'a>(
     config: &'a NoteModel,
-) -> impl Parser<'a, &'a str, Vec<P_NoteModel>, extra::Err<Rich<'a, char>>> + Clone {
+) -> impl Parser<'a, &'a str, Vec<Note>, extra::Err<Rich<'a, char>>> + Clone {
     // Whitespace parser (excluding newlines), ignored for padding/ignoring
     let inline_whitespace = one_of(" \t").repeated().ignored();
 
@@ -344,9 +344,10 @@ fn parser<'a>(
     line.repeated()
         .collect::<Vec<_>>()
         .then_ignore(end())
-        .map_with(|items, _| {
+        .map_with(move |items, _| {
             let mut models = Vec::new();
             let mut current_model: (Option<P_NoteModel>, Option<Range<usize>>) = (None, None);
+            let mut cards = Vec::new();
             let mut current_tags: Vec<String> = Vec::new();
             let mut current_fields: Vec<NoteField> = Vec::new();
 
@@ -357,9 +358,10 @@ fn parser<'a>(
                         if let Some(mut model) = current_model.0.take() {
                             // Add any remaining card
                             if !current_fields.is_empty() {
-                                model.cards.push(Note {
+                                cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
+                                    model: config,
                                 });
                                 current_fields.clear();
                                 current_tags.clear();
@@ -371,7 +373,6 @@ fn parser<'a>(
                             Some(P_NoteModel {
                                 name,
                                 aliases: HashMap::new(),
-                                cards: Vec::new(),
                             }),
                             Some(span.into_range()),
                         );
@@ -451,9 +452,10 @@ fn parser<'a>(
                         // Blank line indicates end of current card
                         if !current_fields.is_empty() {
                             if let Some(ref mut model) = current_model.0 {
-                                model.cards.push(Note {
+                                cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
+                                    model: config,
                                 });
                                 current_fields.clear();
                                 current_tags.clear();
@@ -466,15 +468,16 @@ fn parser<'a>(
             // Don't forget the last model and card
             if let Some(mut model) = current_model.0 {
                 if !current_fields.is_empty() {
-                    model.cards.push(Note {
+                    cards.push(Note {
                         fields: current_fields,
                         tags: current_tags,
+                        model: &config,
                     });
                 }
                 models.push(model);
             }
 
-            models
+            cards
         })
 }
 
@@ -533,19 +536,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let parse_result = parser(&config).parse(&example_content);
 
     match parse_result.into_result() {
-        Ok(models) => {
+        Ok(cards) => {
             for model in models {
-                println!("Note Model: {}", model.name);
-
-                if !model.aliases.is_empty() {
-                    println!("  Aliases:");
-                    for (from, to) in &model.aliases {
-                        println!("    {} -> {}", from, to);
-                    }
-                }
-
                 println!("  Cards:");
-                for card in &model.cards {
+                for card in &cards {
                     for field in card.fields.clone() {
                         println!("{} : {:?}", field.name, field.content);
                     }
