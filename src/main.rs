@@ -101,8 +101,8 @@ pub struct Defaults {
 #[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Field {
     pub name: String,
-    pub sticky: bool,
-    pub media: Vec<String>,
+    pub sticky: Option<bool>,
+    pub associated_media: Option<Vec<PathBuf>>,
 }
 
 #[derive(Deserialize, Clone, PartialEq, Debug)]
