@@ -31,6 +31,9 @@ pub struct NoteField {
 pub struct NoteModel {
     pub name: String,
 
+    // The available templates
+    pub templates: Vec<Template>,
+
     // The version of the schema that we're on
     pub schema_version: Version,
 
@@ -108,12 +111,18 @@ pub struct Field {
 #[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Template {
     pub name: String,
+
+    #[serde(skip)]
     pub order: i32,
 
+    #[serde(skip)]
     pub question_format: String,
+    #[serde(skip)]
     pub answer_format: String,
 
+    #[serde(skip)]
     pub browser_question_format: String,
+    #[serde(skip)]
     pub browser_answer_format: String,
 }
 
