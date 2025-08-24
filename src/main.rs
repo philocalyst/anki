@@ -38,7 +38,7 @@ pub struct NoteModel {
     pub schema_version: Version,
 
     // The default field configuration
-    pub defaults: Defaults,
+    pub defaults: Option<Defaults>,
 
     // Anything with serde skip means I don't want it to be possible to be included in the TOML representation
     #[serde(skip)]
@@ -51,7 +51,8 @@ pub struct NoteModel {
     #[serde(skip)]
     pub latex_post: Option<String>,
 
-    pub sort_field: Option<i32>,
+    // The field to sort around
+    pub sort_field: Option<String>,
     pub tags: Option<Vec<String>>,
 
     // The required fields are determined at runtime, this String holds a boolean expression that affirms this.
