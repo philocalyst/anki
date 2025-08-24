@@ -11,6 +11,7 @@ use std::{
 };
 
 use crate::crowd_anki::{CrowdAnkiEntity, NoteModelType};
+use evalexpr::Node;
 
 mod crowd_anki;
 
@@ -39,7 +40,7 @@ pub struct NoteModel {
     pub tags: Option<Vec<String>>,
 
     // The required fields are determined at runtime, this String holds a boolean expression that affirms this.
-    pub required: String,
+    pub required: Node,
 }
 
 #[derive(Debug, Clone, PartialEq)]
