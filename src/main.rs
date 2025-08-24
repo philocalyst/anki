@@ -37,6 +37,9 @@ pub struct NoteModel {
 
     pub sort_field: Option<i32>,
     pub tags: Option<Vec<String>>,
+
+    // The required fields are determined at runtime, this String holds a boolean expression that affirms this.
+    pub required: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
