@@ -31,6 +31,12 @@ pub struct NoteField {
 pub struct NoteModel {
     pub name: String,
 
+    // The version of the schema that we're on
+    pub schema_version: Version,
+
+    // The default field configuration
+    pub defaults: Defaults,
+
     // Anything with serde skip means I don't want it to be possible to be included in the TOML representation
     #[serde(skip)]
     pub css: String,
@@ -85,20 +91,7 @@ pub enum FlashItem {
     BlankLine,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Config {
-    pub schema_version: Version,
-
-    // this corresponds to the `[defaults]` table
-    pub defaults: Defaults,
-
-    // this corresponds to the `[[templates]]` array of tables
-    pub templates: Vec<Template>,
-
-    pub model: NoteModel,
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Defaults {
     pub font: String,
     pub size: u32,
@@ -125,7 +118,7 @@ pub struct Template {
 }
 
 fn parser<'a>(
-    config: &'a Config,
+    config: &'a NoteModel,
 ) -> impl Parser<'a, &'a str, Vec<P_NoteModel>, extra::Err<Rich<'a, char>>> + Clone {
     // Whitespace parser (excluding newlines), ignored for padding/ignoring
     let inline_whitespace = one_of(" \t").repeated().ignored();
@@ -189,12 +182,7 @@ fn parser<'a>(
     let field = text::ident()
         .then_ignore(just(':'))
         .try_map(|field_name: &str, _| {
-            if config
-                .model
-                .fields
-                .iter()
-                .any(|f| f.name.as_str() == field_name)
-            {
+            if config.fields.iter().any(|f| f.name.as_str() == field_name) {
                 Ok(field_name.to_string())
             } else {
                 Ok(field_name.to_string())
@@ -321,7 +309,7 @@ fn parser<'a>(
                         let out = Color::Fixed(81);
 
                         if let Some(ref model) = current_model.0 {
-                            if !config.model.fields.iter().any(|f| f.name == name)
+                            if !config.fields.iter().any(|f| f.name == name)
                                 && model.aliases.get(&name).is_none()
                             {
                                 let range: Range<usize> = span.into_range();
@@ -343,7 +331,6 @@ fn parser<'a>(
                                     format!(
                                         "{:?}",
                                         config
-                                            .model
                                             .fields
                                             .iter()
                                             .map(|item| item.name.clone())
@@ -441,7 +428,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Load config first
     let example_config = fs::read_to_string(config)?;
-    let config: Config = toml::from_str(&example_config).unwrap();
+    let config: NoteModel = toml::from_str(&example_config).unwrap();
 
     let example_content = fs::read_to_string(cards[0].clone())?;
 
