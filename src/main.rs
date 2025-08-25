@@ -222,29 +222,30 @@ fn find_model<'a>(
     return Err("Model doesn't exist".into());
 }
 
-fn parser<'a>(
-    available_models: &[NoteModel],
+pub fn parser<'a>(
+    available_models: &'a [NoteModel],
 ) -> impl Parser<'a, &'a str, Vec<Note<'a>>, extra::Err<Rich<'a, char>>> + Clone {
-    // Whitespace parser (excluding newlines), ignored for padding/ignoring
-    let inline_whitespace = one_of(" \t").repeated().ignored();
+    // Inline whitespace (spaces and tabs only; excludes newlines)
+    let ws = one_of(" \t").repeated().ignored();
 
+    // "= Model Name =" line
     let note_model = just('=')
         .ignore_then(none_of('=').repeated().collect::<String>())
         .then_ignore(just('='))
         .map(|name| FlashItem::NoteModel(name.trim().to_string()));
 
-    // Alias parser (alias Question to Q)
+    // "alias <from> to <to>"
     let alias = text::keyword("alias")
-        .padded_by(inline_whitespace.clone())
+        .padded_by(ws.clone())
         .ignore_then(
             none_of([' ', '\t', '\n'])
                 .repeated()
                 .at_least(1)
                 .collect::<String>(),
         )
-        .then_ignore(inline_whitespace.clone())
+        .then_ignore(ws.clone())
         .then_ignore(text::keyword("to"))
-        .then_ignore(inline_whitespace.clone())
+        .then_ignore(ws.clone())
         .then(
             none_of([' ', '\t', '\n'])
                 .repeated()
@@ -253,8 +254,8 @@ fn parser<'a>(
         )
         .map(|(from, to)| FlashItem::Alias { from, to });
 
-    // Complete cloze parser
-    let cloze_id = text::int(10).map(|s: &str| s.to_string().parse::<u32>().unwrap());
+    // Cloze deletion: #[id]{answer|hint}
+    let cloze_id = text::int(10).from_str().unwrapped();
 
     let cloze_content = none_of(['|', '}', '\n'])
         .repeated()
@@ -262,33 +263,34 @@ fn parser<'a>(
         .collect::<String>()
         .map(|s| s.trim().to_string());
 
-    let hint = just('|').ignore_then(cloze_content.clone()).or_not();
+    let cloze_hint = just('|').ignore_then(cloze_content.clone()).or_not();
 
     let cloze = just('#')
         .ignore_then(cloze_id)
         .then_ignore(just('{'))
         .then(cloze_content)
-        .then(hint)
+        .then(cloze_hint)
         .then_ignore(just('}'))
         .map(|((id, answer), hint)| TextElement::Cloze(Cloze { id, answer, hint }));
 
+    // [tag1, tag2, ...]
     let tag = none_of(",[]")
         .repeated()
         .at_least(1)
         .collect::<String>()
-        .map(|s: String| s.trim().to_string());
+        .map(|s| s.trim().to_string());
 
     let tags = tag
         .separated_by(just(',').padded())
-        .collect::<Vec<_>>() // <-- required; otherwise output is ()
+        .collect::<Vec<_>>()
         .delimited_by(just('['), just(']'))
         .map(FlashItem::Tags);
 
-    let field = text::ident()
-        .then_ignore(just(':'))
-        .map(|field_name: &str| field_name.to_string());
+    // Field name (identifier) before the colon, then its content (text + clozes)
+    let field_name = text::ident()
+        .map(|s: &str| s.to_string())
+        .then_ignore(just(':'));
 
-    // Updated content parser that handles mixed text and cloze deletions
     let regular_text = none_of(['#', '\n'])
         .repeated()
         .at_least(1)
@@ -297,194 +299,170 @@ fn parser<'a>(
 
     let content_element = cloze.or(regular_text);
 
+    // Merge adjacent Text(...) for cleaner output
     let content = content_element
         .repeated()
         .collect::<Vec<TextElement>>()
-        .validate(|elements, _extra, emitter| {
-            // Merge adjacent text elements for cleaner output
+        .validate(|elements, _span, _emitter| {
             let mut merged = Vec::new();
-            let mut current_text = String::new();
+            let mut buf = String::new();
 
-            for element in elements {
-                match element {
-                    TextElement::Text(text) => {
-                        current_text.push_str(&text);
-                    }
-                    TextElement::Cloze(cloze) => {
-                        if !current_text.is_empty() {
-                            merged.push(TextElement::Text(current_text.clone()));
-                            current_text.clear();
+            for el in elements {
+                match el {
+                    TextElement::Text(t) => buf.push_str(&t),
+                    cloze @ TextElement::Cloze(_) => {
+                        if !buf.is_empty() {
+                            merged.push(TextElement::Text(std::mem::take(&mut buf)));
                         }
-                        merged.push(TextElement::Cloze(cloze));
+                        merged.push(cloze);
                     }
                 }
             }
 
-            if !current_text.is_empty() {
-                merged.push(TextElement::Text(current_text));
+            if !buf.is_empty() {
+                merged.push(TextElement::Text(buf));
             }
 
             merged
         });
 
-    let pair = field
-        .then_ignore(inline_whitespace.clone())
+    let field_pair = field_name
+        .then_ignore(ws.clone())
         .then(content)
         .map(|(name, content)| FlashItem::Field { name, content });
 
-    // Comment parser (// comment)
     let comment = just("//")
         .ignore_then(none_of('\n').repeated().collect::<String>())
         .map(FlashItem::Comment);
 
-    // Blank line parser
     let blank_line = text::newline().to(FlashItem::BlankLine);
 
-    // Line parser
-    let line =
-        choice((note_model, alias, tags, pair, comment, blank_line)).map_with(|item, extra| {
-            let span: SimpleSpan = extra.span(); // Get the span for the parsed item
-            (item, span) // Return the item along with its span
-        });
+    // A single line in the input (we keep the span to enable good error messages)
+    let line = choice((note_model, alias, tags, field_pair, comment, blank_line))
+        .map_with(|item, e| (item, e.span()));
 
-    // Full parser
+    // For building notes, we need a little bit of state.
+    #[derive(Default)]
+    struct BuildState<'m> {
+        current_model: Option<&'m NoteModel>,
+        aliases: HashMap<String, String>,
+        tags: Vec<String>,
+        fields: Vec<NoteField>,
+        notes: Vec<Note<'m>>,
+    }
+
+    // Helper: find model by name
+    let find_model = move |name: &str| available_models.iter().find(|m| m.name == name);
+
+    // Helper: finalize current note (if any), clear working buffers
+    let mut finalize_note = |state: &mut BuildState<'a>| {
+        if state.fields.is_empty() {
+            // Nothing to flush
+            return;
+        }
+        if let Some(model) = state.current_model {
+            state.notes.push(Note {
+                fields: std::mem::take(&mut state.fields),
+                tags: std::mem::take(&mut state.tags),
+                model,
+            });
+        } else {
+            // If no model is active, discard accumulated fields/tags
+            state.fields.clear();
+            state.tags.clear();
+        }
+    };
+
+    // Build notes and emit user-friendly errors for unknown fields or models.
     line.repeated()
-        .collect::<Vec<_>>()
+        .collect::<Vec<(FlashItem, SimpleSpan)>>()
         .then_ignore(end())
-        .map_with(move |items, _| {
-            let mut models = Vec::new();
-            let mut current_model: ParserNoteModel;
-            let mut cards = Vec::new();
-            let mut current_tags: Vec<String> = Vec::new();
-            let mut current_fields: Vec<NoteField> = Vec::new();
+        .validate(move |items, _span, emitter| {
+            let mut state = BuildState::default();
 
-            for item in items {
+            for (item, span) in items {
                 match item {
-                    (FlashItem::NoteModel(name), span) => {
-                        // Save previous model if exists
-                        if let Some(mut model) = current_model.model {
-                            // Add any remaining card
-                            if !current_fields.is_empty() {
-                                cards.push(Note {
-                                    fields: current_fields.clone(),
-                                    tags: current_tags.clone(),
-                                    model: &model,
-                                });
-                                current_fields.clear();
-                                current_tags.clear();
+                    FlashItem::NoteModel(name) => {
+                        // Flush any pending note before switching model
+                        finalize_note(&mut state);
+                        state.aliases.clear();
+
+                        match find_model(&name) {
+                            Some(m) => state.current_model = Some(m),
+                            None => {
+                                // Keep logic: selecting a model that doesn't exist is an error.
+                                emitter.emit(Rich::custom(
+                                    span,
+                                    format!("Unknown note model '{}'", name),
+                                ));
+                                state.current_model = None;
                             }
-                            models.push(model);
-                        }
-
-                        let found_model = find_model(&name, available_models).unwrap();
-
-                        current_model = ParserNoteModel {
-                            model: Some(found_model),
-                            span: Some(span),
-                            aliases,
-                        };
-                    }
-
-                    (FlashItem::Alias { from, to }, _) => {
-                        if let Some(ref mut model) = current_model.0 {
-                            model.aliases.insert(from, to);
                         }
                     }
 
-                    (FlashItem::Tags(tags), _) => {
-                        current_tags = tags;
+                    FlashItem::Alias { from, to } => {
+                        // Only meaningful if a model is active
+                        if state.current_model.is_some() {
+                            state.aliases.insert(from, to);
+                        }
                     }
 
-                    (FlashItem::Field { name, content }, span) => {
-                        use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind};
+                    FlashItem::Tags(ts) => {
+                        state.tags = ts;
+                    }
 
-                        let mut colors = ColorGenerator::new();
+                    FlashItem::Field { name, content } => {
+                        // Apply alias, if any
+                        let resolved_name = state
+                            .aliases
+                            .get(&name)
+                            .cloned()
+                            .unwrap_or_else(|| name.clone());
 
-                        let path = "/home/miles/Downloads/anki/COVID.deck/example.flash";
-                        let path_content = fs::read_to_string(path).unwrap();
+                        // Validate against the active model's fields, if there is a model
+                        if let Some(model) = state.current_model {
+                            let exists = model.fields.iter().any(|f| f.name == resolved_name);
 
-                        // pick some colours
-                        let a = colors.next();
-                        // let b = colors.next();
-                        let out = Color::Fixed(81);
+                            if !exists {
+                                // Keep original logic: complain and skip this field
+                                let available = model
+                                    .fields
+                                    .iter()
+                                    .map(|f| f.name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
 
-                        if let Some(ref model) = current_model.0 {
-                            if !available_models.fields.iter().any(|f| f.name == name)
-                                && model.aliases.get(&name).is_none()
-                            {
-                                let range: Range<usize> = span.into_range();
-                                // build the error
-                                let report = Report::build(
-                                    ReportKind::Error,
-                                    (path, current_model.1.clone().unwrap()),
-                                )
-                                .with_code(3)
-                                .with_message("Unknown field!")
-                                .with_label(
-                                    Label::new((path, range))
-                                        .with_message(format!("No field named '{}'", name))
-                                        .with_color(a),
-                                )
-                                .with_note(format!(
-                                    "For the model {}, the available fields are {}",
-                                    model.name.clone().fg(out),
+                                emitter.emit(Rich::custom(
+                                    span,
                                     format!(
-                                        "{:?}",
-                                        available_models
-                                            .fields
-                                            .iter()
-                                            .map(|item| item.name.clone())
-                                            .collect::<Vec<_>>()
-                                    )
-                                    .fg(out)
-                                ))
-                                .finish();
-
-                                // write it out
-                                let mut stdout = io::stdout();
-                                report
-                                    .write((path, Source::from(&path_content)), &mut stdout)
-                                    .unwrap();
+                                        "Unknown field '{}' for model '{}'. Available: [{}]",
+                                        name, model.name, available
+                                    ),
+                                ));
                                 continue;
                             }
                         }
-                        current_fields.push(NoteField { name, content });
+
+                        state.fields.push(NoteField {
+                            name: resolved_name,
+                            content,
+                        });
                     }
 
-                    (FlashItem::Comment(_), _) => {
-                        // Ignore comments
+                    FlashItem::Comment(_) => {
+                        // Ignore
                     }
 
-                    (FlashItem::BlankLine, _) => {
-                        // Blank line indicates end of current card
-                        if !current_fields.is_empty() {
-                            if let Some(ref mut model) = current_model.0 {
-                                cards.push(Note {
-                                    fields: current_fields.clone(),
-                                    tags: current_tags.clone(),
-                                    model: available_models,
-                                });
-                                current_fields.clear();
-                                current_tags.clear();
-                            }
-                        }
+                    FlashItem::BlankLine => {
+                        finalize_note(&mut state);
                     }
                 }
             }
 
-            // Don't forget the last model and card
-            if let Some(mut model) = current_model.0 {
-                if !current_fields.is_empty() {
-                    cards.push(Note {
-                        fields: current_fields,
-                        tags: current_tags,
-                        model: &available_models,
-                    });
-                }
-                models.push(model);
-            }
+            // Final flush at EOF
+            finalize_note(&mut state);
 
-            cards
+            state.notes
         })
 }
 
@@ -522,6 +500,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut all_models: Vec<NoteModel> = Vec::new();
 
     for model in models.clone() {
+        dbg!(&model);
         let config = model.join("config.toml");
 
         // Load config first
