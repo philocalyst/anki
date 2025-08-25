@@ -1,18 +1,9 @@
-
-
-
-
 =Basic=
 alias Q to Question
 alias A to Answer
 
-QQ:
+[Bio, Covid-19, Health]
+Question: The largest planet in our solar system is #1{Juptier|gas giant} and it is #2{green|color}
+Answer: YEP
 
-["Biology", "Covid-19", "Health"]
-Question: HII
-Answer: YEPPP
-
-// OR
-Q:
-A:
-
+QQ: Whaaa

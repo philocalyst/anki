@@ -2,13 +2,8 @@ schema_version = "1.0.0"
 
 name   = "Cloze with Source"
 tags   = ["statistics"]
+required = "Question"
 sort_field  = "Text"   # use field index 0 ("Text") for sorting
-
-# defaults for all fields
-[defaults]
-font = "Arial"
-size = 20
-rtl  = false
 
 # per-field overrides (if you don't need to define sticky or associated media, this is as simple as it gets)
 fields = [
