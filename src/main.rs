@@ -15,6 +15,12 @@ use evalexpr::Node;
 
 mod crowd_anki;
 
+struct ParserNoteModel<'a> {
+    pub model: Option<&'a NoteModel>,
+    pub span: Option<SimpleSpan>,
+    pub aliases: HashMap<String, &'a NoteField>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Note<'a> {
     pub fields: Vec<NoteField>,
@@ -22,7 +28,7 @@ pub struct Note<'a> {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct NoteField {
     name: String,
     content: Vec<TextElement>,
@@ -203,6 +209,19 @@ impl NoteModel {
     }
 }
 
+fn find_model<'a>(
+    name: &str,
+    available_models: &'a [NoteModel],
+) -> Result<&'a NoteModel, Box<dyn Error>> {
+    for model in available_models {
+        if model.name == name {
+            return Ok(model);
+        }
+    }
+
+    return Err("Model doesn't exist".into());
+}
+
 fn parser<'a>(
     available_models: &[NoteModel],
 ) -> impl Parser<'a, &'a str, Vec<Note<'a>>, extra::Err<Rich<'a, char>>> + Clone {
@@ -267,17 +286,7 @@ fn parser<'a>(
 
     let field = text::ident()
         .then_ignore(just(':'))
-        .try_map(|field_name: &str, _| {
-            if available_models
-                .fields
-                .iter()
-                .any(|f| f.name.as_str() == field_name)
-            {
-                Ok(field_name.to_string())
-            } else {
-                Ok(field_name.to_string())
-            }
-        });
+        .map(|field_name: &str| field_name.to_string());
 
     // Updated content parser that handles mixed text and cloze deletions
     let regular_text = none_of(['#', '\n'])
@@ -344,7 +353,7 @@ fn parser<'a>(
         .then_ignore(end())
         .map_with(move |items, _| {
             let mut models = Vec::new();
-            let mut current_model: (Option<P_NoteModel>, Option<Range<usize>>) = (None, None);
+            let mut current_model: ParserNoteModel;
             let mut cards = Vec::new();
             let mut current_tags: Vec<String> = Vec::new();
             let mut current_fields: Vec<NoteField> = Vec::new();
@@ -353,13 +362,13 @@ fn parser<'a>(
                 match item {
                     (FlashItem::NoteModel(name), span) => {
                         // Save previous model if exists
-                        if let Some(mut model) = current_model.0.take() {
+                        if let Some(mut model) = current_model.model {
                             // Add any remaining card
                             if !current_fields.is_empty() {
                                 cards.push(Note {
                                     fields: current_fields.clone(),
                                     tags: current_tags.clone(),
-                                    model: available_models,
+                                    model: &model,
                                 });
                                 current_fields.clear();
                                 current_tags.clear();
@@ -367,13 +376,13 @@ fn parser<'a>(
                             models.push(model);
                         }
 
-                        current_model = (
-                            Some(P_NoteModel {
-                                name,
-                                aliases: HashMap::new(),
-                            }),
-                            Some(span.into_range()),
-                        );
+                        let found_model = find_model(&name, available_models).unwrap();
+
+                        current_model = ParserNoteModel {
+                            model: Some(found_model),
+                            span: Some(span),
+                            aliases,
+                        };
                     }
 
                     (FlashItem::Alias { from, to }, _) => {
