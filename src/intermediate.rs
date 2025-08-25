@@ -8,3 +8,10 @@ pub struct Lock {
     history: Vec<Operation>,
 }
 
+pub enum Operation {
+    Added { note: NoteRecord },
+    Deleted { note: NoteRecord },
+
+    // To is the position in the notes list
+    Moved { note: NoteRecord, to: usize },
+}
