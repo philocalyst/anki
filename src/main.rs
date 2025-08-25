@@ -482,7 +482,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    dbg!(&dirs);
     let deck: PathBuf = dirs.into_iter().find(|dir| is_deck_dir(dir)).unwrap();
 
     // Get the models and flashcards in the deck
@@ -500,7 +499,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut all_models: Vec<NoteModel> = Vec::new();
 
     for model in models.clone() {
-        dbg!(&model);
         let config = model.join("config.toml");
 
         // Load config first
@@ -520,19 +518,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match parse_result.into_result() {
         Ok(cards) => {
-            for model in models {
-                println!("  Cards:");
-                for card in &cards {
-                    for field in card.fields.clone() {
-                        println!("{} : {:?}", field.name, field.content);
-                    }
-                    if !card.tags.is_empty() {
-                        println!("    Tags: {:?}", card.tags);
-                    }
-                    println!();
+            println!("  Cards:");
+            for card in &cards {
+                for field in card.fields.clone() {
+                    println!("{} : {:?}", field.name, field.content);
                 }
-                println!("---");
+                if !card.tags.is_empty() {
+                    println!("    Tags: {:?}", card.tags);
+                }
+                println!();
             }
+            println!("---");
         }
 
         Err(errors) => {
