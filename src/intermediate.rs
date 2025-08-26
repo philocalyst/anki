@@ -9,9 +9,9 @@ pub struct Lock {
 }
 
 pub enum Operation {
-    Added { note: NoteRecord },
-    Deleted { note: NoteRecord },
+    Added { note: &NoteRecord },
+    Deleted { note: &NoteRecord },
 
     // To is the position in the notes list
-    Moved { note: NoteRecord, to: usize },
+    Moved { note: &NoteRecord, to: usize },
 }
