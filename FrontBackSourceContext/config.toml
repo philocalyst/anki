@@ -1,0 +1,28 @@
+# Provide a default template for all the fields and then you can override individually
+# The order provided in the array is the order that they'll appear in anki
+# By default, all fields must be specified
+[fields]
+field_order = ["Front", "Back", "Source", "Context", "Include Reverse"]
+rtl = false
+font-size = 20
+sticky = true
+
+# TODO: Implement some kind of && || logic?
+# Any required field overrides the default
+[[templates]]
+name = "Front-Back"
+required = ["Front", "Context"]
+
+[note]
+latex_post = "\\end{document}"
+latex_pre = '''
+\documentclass[12pt]{article}
+\special{papersize=3in,5in}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb,amsmath}
+\pagestyle{empty}
+\setlength{\parindent}{0in}
+\begin{document}
+'''
+sortf = 0
+tags = ["covid-19"]

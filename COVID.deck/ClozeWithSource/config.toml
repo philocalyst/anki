@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 
-name   = "Cloze with Source"
+name   = "Basic"
 tags   = ["statistics"]
 required = "Question"
 sort_field  = "Text"   # use field index 0 ("Text") for sorting
