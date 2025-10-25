@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chumsky::span::SimpleSpan;
 
-use crate::{NoteField, NoteModel, TextElement};
+use crate::types::note::{NoteField, NoteModel, TextElement};
 
 struct ParserNoteModel<'a> {
 	pub model:   Option<&'a NoteModel>,

@@ -19,7 +19,7 @@ pub struct NoteField {
 	pub content: Vec<TextElement>,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Hash, Eq, Deserialize, Clone, PartialEq)]
 pub struct NoteModel {
 	pub name: String,
 
@@ -47,10 +47,9 @@ pub struct NoteModel {
 	// The field to sort around
 	pub sort_field: Option<String>,
 	pub tags:       Option<Vec<String>>,
-
 	// The required fields are determined at runtime, this String holds a boolean expression that
 	// affirms this.
-	pub required: Node,
+	// pub required: Node,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,7 +65,7 @@ pub enum TextElement {
 	Cloze(Cloze),
 }
 
-#[derive(Deserialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Field {
 	pub name:             String,
 	pub sticky:           Option<bool>,

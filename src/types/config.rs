@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Template {
 	pub name: String,
 
@@ -18,7 +18,7 @@ pub struct Template {
 	pub browser_answer_format:   String,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Defaults {
 	pub font: String,
 	pub size: u32,
