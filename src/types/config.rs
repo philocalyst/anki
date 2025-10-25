@@ -17,3 +17,10 @@ pub struct Template {
 	#[serde(skip)]
 	pub browser_answer_format:   String,
 }
+
+#[derive(Deserialize, Clone, PartialEq, Debug)]
+pub struct Defaults {
+	pub font: String,
+	pub size: u32,
+	pub rtl:  bool,
+}
