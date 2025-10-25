@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::Path};
 
-use crate::types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, Note, NoteModelType}};
+use crate::types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, Note, NoteModelType}, note::Cloze};
 
 impl super::note::NoteModel {
 	pub fn complete(&mut self, dir: &Path) -> Result<(), Box<dyn Error>> {
@@ -210,6 +210,19 @@ impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::N
 	}
 }
 
+/// This type represents Cloze's as anki expects them in note fields
+pub struct ClozeString(String);
+
+impl<'a> From<Cloze> for ClozeString {
+	fn from(cloze: Cloze) -> Self {
+		if let Some(hint) = cloze.hint {
+			ClozeString(format!("{{{{c{}::{}::{}}}}}", cloze.id, cloze.answer, hint))
+		} else {
+			ClozeString(format!("{{{{c{}::{}}}}}", cloze.id, cloze.answer))
+		}
+	}
+}
+
 impl<'a> From<crate::types::note::Note<'a>> for Note {
 	fn from(note: crate::types::note::Note<'a>) -> Self {
 		Note {
@@ -225,11 +238,10 @@ impl<'a> From<crate::types::note::Note<'a>> for Note {
 						.map(|elem| match elem {
 							crate::types::note::TextElement::Text(s) => s,
 							crate::types::note::TextElement::Cloze(c) => {
-								if let Some(hint) = c.hint {
-									format!("{{{{c{}::{}::{}}}}}", c.id, c.answer, hint)
-								} else {
-									format!("{{{{c{}::{}}}}}", c.id, c.answer)
-								}
+								// Turn into cloze string
+								let clozed: ClozeString = c.into();
+
+								clozed.0
 							}
 						})
 						.collect::<String>()
