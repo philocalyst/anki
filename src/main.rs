@@ -241,13 +241,11 @@ pub fn parser<'a>(
 
 	let cloze_hint = just('|').ignore_then(cloze_content.clone()).or_not();
 
-	let cloze = just('#')
-		.ignore_then(cloze_id)
-		.then_ignore(just('{'))
-		.then(cloze_content)
+	let cloze = just('{')
+		.ignore_then(cloze_content)
 		.then(cloze_hint)
 		.then_ignore(just('}'))
-		.map(|((id, answer), hint)| TextElement::Cloze(Cloze { id, answer, hint }));
+		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
 
 	// [tag1, tag2, ...]
 	let tag = none_of(",[]").repeated().at_least(1).collect::<String>().map(|s| s.trim().to_string());
@@ -262,7 +260,7 @@ pub fn parser<'a>(
 	let field_name = text::ident().map(|s: &str| s.to_string()).then_ignore(just(':'));
 
 	let regular_text =
-		none_of(['#', '\n']).repeated().at_least(1).collect::<String>().map(TextElement::Text);
+		none_of(['{', '#', '\n']).repeated().at_least(1).collect::<String>().map(TextElement::Text);
 
 	let content_element = cloze.or(regular_text);
 
@@ -279,6 +277,7 @@ pub fn parser<'a>(
 						if !buf.is_empty() {
 							merged.push(TextElement::Text(std::mem::take(&mut buf)));
 						}
+
 						merged.push(cloze);
 					}
 				}
@@ -455,7 +454,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		let example_config = fs::read_to_string(config)?;
 		let mut config: NoteModel = toml::from_str(&example_config).unwrap();
 
-		config.complete(Path::new("/home/miles/Downloads/anki/COVID.deck/ClozeWithSource"))?;
+		config.complete(Path::new("/Users/philocalyst/Projects/anki/COVID.deck/ClozeWithSource"))?;
 
 		all_models.push(config);
 	}
