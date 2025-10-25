@@ -233,9 +233,6 @@ pub fn parser<'a>(
 		.then(none_of([' ', '\t', '\n']).repeated().at_least(1).collect::<String>())
 		.map(|(from, to)| FlashItem::Alias { from, to });
 
-	// Cloze deletion: #[id]{answer|hint}
-	let cloze_id = text::int(10).from_str().unwrapped();
-
 	let cloze_content = none_of(['|', '}', '\n'])
 		.repeated()
 		.at_least(1)
