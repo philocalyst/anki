@@ -6,9 +6,9 @@ use evalexpr::Node;
 use semver::Version;
 use serde::Deserialize;
 
-use crate::crowd_anki::{CrowdAnkiEntity, NoteModelType};
+use crate::types::crowd_anki_models::{CrowdAnkiEntity, NoteModelType};
 
-mod crowd_anki;
+mod types;
 
 struct ParserNoteModel<'a> {
 	pub model:   Option<&'a NoteModel>,
