@@ -1,6 +1,8 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
 
-use crate::types::note::NoteModel;
+use chumsky::Parser;
+
+use crate::{parse::parser, types::note::NoteModel};
 
 mod parse;
 mod types;
