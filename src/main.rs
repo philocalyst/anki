@@ -6,15 +6,9 @@ use evalexpr::Node;
 use semver::Version;
 use serde::Deserialize;
 
-use crate::types::crowd_anki_models::{CrowdAnkiEntity, NoteModelType};
+use crate::types::{config::Template, crowd_anki_models::{CrowdAnkiEntity, NoteModelType}, parser::FlashItem};
 
 mod types;
-
-struct ParserNoteModel<'a> {
-	pub model:   Option<&'a NoteModel>,
-	pub span:    Option<SimpleSpan>,
-	pub aliases: HashMap<String, &'a NoteField>,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Note<'a> {
@@ -76,16 +70,6 @@ pub enum TextElement {
 	Cloze(Cloze),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum FlashItem {
-	NoteModel(String),
-	Alias { from: String, to: String },
-	Tags(Vec<String>),
-	Field { name: String, content: Vec<TextElement> },
-	Comment(String),
-	BlankLine,
-}
-
 #[derive(Deserialize, Clone, PartialEq, Debug)]
 pub struct Defaults {
 	pub font: String,
@@ -98,24 +82,6 @@ pub struct Field {
 	pub name:             String,
 	pub sticky:           Option<bool>,
 	pub associated_media: Option<Vec<PathBuf>>,
-}
-
-#[derive(Deserialize, Clone, PartialEq, Debug)]
-pub struct Template {
-	pub name: String,
-
-	#[serde(skip)]
-	pub order: i32,
-
-	#[serde(skip)]
-	pub question_format: String,
-	#[serde(skip)]
-	pub answer_format:   String,
-
-	#[serde(skip)]
-	pub browser_question_format: String,
-	#[serde(skip)]
-	pub browser_answer_format:   String,
 }
 
 impl NoteModel {
