@@ -180,23 +180,29 @@ pub fn parser<'a>(
 	// Inline whitespace (spaces and tabs only; excludes newlines)
 	let ws = one_of(" \t").repeated().ignored();
 
+	// A line can end with a newline or the end of the input
+	let eol = text::newline().or(end());
+	let line_ending = ws.clone().then_ignore(eol);
+
 	// "= Model Name =" line
 	let note_model = just('=')
 		.ignore_then(none_of('=').repeated().collect::<String>())
 		.then_ignore(just('='))
-		.map(|name| FlashItem::NoteModel(name.trim().to_string()));
+		.map(|name| FlashItem::NoteModel(name.trim().to_string()))
+		.then_ignore(line_ending.clone());
 
 	// "alias <from> to <to>"
-	let identifier = none_of([' ', '\t', '\n']).repeated().at_least(1).collect::<String>();
+	let identifier = none_of([' ', '\t', '\n', ':']).repeated().at_least(1).collect::<String>();
 
 	let alias = text::keyword("alias")
-		.padded_by(ws.clone())
+		.ignore_then(ws.clone())
 		.ignore_then(identifier.clone())
 		.then_ignore(ws.clone())
 		.then_ignore(text::keyword("to"))
 		.then_ignore(ws.clone())
 		.then(identifier)
-		.map(|(from, to)| FlashItem::Alias { from, to });
+		.map(|(from, to)| FlashItem::Alias { from, to })
+		.then_ignore(line_ending.clone());
 
 	// Cloze parsing
 	let cloze_content = none_of(['|', '}', '\n'])
@@ -214,13 +220,16 @@ pub fn parser<'a>(
 		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
 
 	// [tag1, tag2, ...]
-	let tag = none_of(",[]").repeated().at_least(1).collect::<String>().map(|s| s.trim().to_string());
+	let tag =
+		none_of(",[]\n").repeated().at_least(1).collect::<String>().map(|s| s.trim().to_string());
 
 	let tags = tag
 		.separated_by(just(',').padded())
+		.allow_trailing()
 		.collect::<Vec<_>>()
 		.delimited_by(just('['), just(']'))
-		.map(FlashItem::Tags);
+		.map(FlashItem::Tags)
+		.then_ignore(line_ending.clone());
 
 	// Field content (text and cloze deletions)
 	let regular_text =
@@ -239,21 +248,24 @@ pub fn parser<'a>(
 	let field_pair = field_name
 		.then_ignore(ws.clone())
 		.then(content)
-		.map(|(name, content)| FlashItem::Field { name, content });
+		.map(|(name, content)| FlashItem::Field { name, content })
+		.then_ignore(line_ending.clone());
 
 	// Comment line: "// comment text"
-	let comment =
-		just("//").ignore_then(none_of('\n').repeated().collect::<String>()).map(FlashItem::Comment);
+	let comment = just("//")
+		.ignore_then(none_of('\n').repeated().collect::<String>())
+		.map(FlashItem::Comment)
+		.then_ignore(line_ending.clone());
 
-	// Blank line
+	// A blank line is now just a newline that isn't part of another item's ending
 	let blank_line = text::newline().to(FlashItem::BlankLine);
 
-	// A single line in the input
-	let line = choice((note_model, alias, tags, field_pair, comment, blank_line))
+	// A single item in the input. Order matters.
+	let item = choice((note_model, alias, tags, field_pair, comment, blank_line))
 		.map_with(|item, e| (item, e.span()));
 
-	// Parse all lines and build notes
-	line.repeated().collect::<Vec<(FlashItem, Span)>>().then_ignore(end()).validate(
+	// Parse all items and build notes
+	item.repeated().collect::<Vec<(FlashItem, Span)>>().then_ignore(end()).validate(
 		move |items, _span, mut emitter| {
 			let mut builder = NoteBuilder::default();
 
