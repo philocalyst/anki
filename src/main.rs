@@ -107,12 +107,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}
 	}
 
-	// Test parsing into a crowd anki struct
-	let ex: CrowdAnkiEntity = parse_result.into_result().unwrap().into();
-
-	let json = serde_json::ser::to_string(&ex)?;
-
-	write("out.json", &json);
+	find_initial_file_creation(&deck.backing_vcs)?;
 
 	Ok(())
 }
@@ -123,7 +118,7 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 	// This is the name of the core file for each deck
 	let target = "index.flash";
 
-	let mut revwalk = repo.rev_walk([head.peel_to_object()?.id()]); // start revision walk from HEAD
+	let revwalk = repo.rev_walk([head.peel_to_object()?.id()]);
 
 	// Now walk the revision tree to find the first
 	for commit_id in revwalk.all()? {
@@ -131,29 +126,33 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 		let commit = repo.find_commit(commit_id.id())?;
 		let tree = commit.tree()?;
 
-		// Check each parent (usually 1)
-		let mut is_first = false;
-		for parent_id in commit.parent_ids() {
+		let parent_ids: Vec<_> = commit.parent_ids().collect();
+
+		// Initial commit - check if file exists
+		if parent_ids.is_empty() {
+			if tree.lookup_entry_by_path(target)?.is_some() {
+				println!("File created in initial commit {}", commit.id());
+				return Ok(());
+			}
+			continue;
+		}
+
+		// Regular commits - check against parents
+		for parent_id in parent_ids {
 			let parent_commit = repo.find_commit(parent_id)?;
 			let parent_tree = parent_commit.tree()?;
 
-			// Try to find the file in parent and current tree
-			let in_parent = parent_tree.lookup_entry_by_path(target).ok();
-			let in_current = tree.lookup_entry_by_path(target).ok();
+			let in_parent = parent_tree.lookup_entry_by_path(target).is_ok();
+			let in_current = tree.lookup_entry_by_path(target).is_ok();
 
-			// If found now, but not in parent — this is where file was added
-			if in_current.is_some() && in_parent.is_none() {
-				println!("File first introduced in commit {} ({:?})", commit.id, commit.message());
-				is_first = true;
-				break;
+			if in_current && !in_parent {
+				println!("File first created in commit {}", commit.id());
+				return Ok(());
 			}
-		}
-
-		if is_first {
-			break;
 		}
 	}
 
+	println!("File not found in repository history");
 	Ok(())
 }
 
