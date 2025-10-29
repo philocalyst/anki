@@ -156,3 +156,18 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 
 	Ok(())
 }
+
+fn get_commit_contents(
+	repo: &Repository,
+	commit: Commit,
+	path: &str,
+) -> Result<String, Box<dyn Error>> {
+	// Get the entry of the tree where our file is found
+	let tree = commit.tree()?;
+	let entry = tree.lookup_entry_by_path(path)?.expect("We know it's here already");
+
+	// Load its data
+	let blob = repo.find_blob(entry.id())?;
+
+	Ok(blob.data.clone().into_string()?)
+}
