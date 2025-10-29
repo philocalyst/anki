@@ -17,13 +17,16 @@ use crate::{
     },
 };
 
+struct Deck<'a> {
+    cards: Vec<Note<'a>>,
+    models: Vec<NoteModel>,
+    backing_vcs: Repository,
 }
 
 mod parse;
 mod types;
 
 fn find_model<'a>(
-	name: &str,
     name: &str,
     available_models: &'a [NoteModel],
 ) -> Result<&'a NoteModel, Box<dyn Error>> {
@@ -90,6 +93,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let binding = all_models.clone();
     let parse_result = parser(binding.as_slice()).parse(&example_content);
 
+    let deck = Deck {
+        cards: parse_result.clone().into_result().unwrap(),
+        models: all_models,
+        backing_vcs,
+    };
 
     match parse_result.clone().into_result() {
         Ok(cards) => {
