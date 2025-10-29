@@ -1,8 +1,8 @@
-use std::{error::Error, fs::{self, write}, path::{Path, PathBuf}};
+use std::{error::Error, fs::{self, write}, path::{Path, PathBuf}, sync::Arc};
 
 use chumsky::Parser;
 use fs_err::read;
-use gix::{Repository, open};
+use gix::{Commit, Repository, bstr::ByteVec, diff::index::{Change, ChangeRef}, open};
 use serde::Serialize;
 
 use crate::{parse::parser, types::{crowd_anki_models::CrowdAnkiEntity, note::{Note, NoteModel}}};
@@ -74,6 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		config.complete(Path::new("/Users/philocalyst/Projects/anki/COVID.deck/ClozeWithSource"))?;
 
 		all_models.push(config);
+		break;
 	}
 
 	let example_content = fs::read_to_string(cards[0].clone())?;
@@ -114,15 +115,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 	let mut head = repo.head()?;
-
-	// This is the name of the core file for each deck
-	let target = "index.flash";
+	let target = "test.flash";
 
 	let revwalk = repo.rev_walk([head.peel_to_object()?.id()]);
 
-	// Now walk the revision tree to find the first
 	for commit_id in revwalk.all()? {
 		let commit_id = commit_id?;
+
+		// This all relies on the commit tree, which contains the files/data at a
+		// particular commit
 		let commit = repo.find_commit(commit_id.id())?;
 		let tree = commit.tree()?;
 
@@ -130,18 +131,22 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 
 		// Initial commit - check if file exists
 		if parent_ids.is_empty() {
-			if tree.lookup_entry_by_path(target)?.is_some() {
+			if let Ok(Some(_entry)) = tree.lookup_entry_by_path(target) {
 				println!("File created in initial commit {}", commit.id());
 				return Ok(());
 			}
 			continue;
 		}
 
-		// Regular commits - check against parents
+		// Regular commits - check against parents, for which there is usually one
+		// (if there are no branches)
 		for parent_id in parent_ids {
+			// Resolve to the respective commit
 			let parent_commit = repo.find_commit(parent_id)?;
+
 			let parent_tree = parent_commit.tree()?;
 
+			// Then look at both the parent and current
 			let in_parent = parent_tree.lookup_entry_by_path(target).is_ok();
 			let in_current = tree.lookup_entry_by_path(target).is_ok();
 
