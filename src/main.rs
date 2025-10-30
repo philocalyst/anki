@@ -2,7 +2,7 @@ use std::{error::Error, fs::{self, write}, path::{Path, PathBuf}, sync::Arc};
 
 use chumsky::Parser;
 use fs_err::read;
-use gix::{Commit, Repository, bstr::ByteVec, diff::index::{Change, ChangeRef}, open};
+use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, diff::index::{Change, ChangeRef}, object::tree::{Entry, EntryRef}, open};
 use serde::Serialize;
 
 use crate::{parse::parser, types::{crowd_anki_models::CrowdAnkiEntity, note::{Note, NoteModel}}};
@@ -115,44 +115,47 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 	let mut head = repo.head()?;
-	let target = "test.flash";
+	let target = "index.flash";
 
 	let revwalk = repo.rev_walk([head.peel_to_object()?.id()]);
 
 	for commit_id in revwalk.all()? {
 		let commit_id = commit_id?;
-
-		// This all relies on the commit tree, which contains the files/data at a
-		// particular commit
 		let commit = repo.find_commit(commit_id.id())?;
 		let tree = commit.tree()?;
 
 		let parent_ids: Vec<_> = commit.parent_ids().collect();
 
-		// Initial commit - check if file exists
+		// Initial commit
 		if parent_ids.is_empty() {
-			if let Ok(Some(_entry)) = tree.lookup_entry_by_path(target) {
-				println!("File created in initial commit {}", commit.id());
-				return Ok(());
+			if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
+				if entry.mode().is_blob() {
+					println!("File created in initial commit {}", commit.id());
+					print_file_contents(repo, &entry)?;
+					return Ok(());
+				}
 			}
 			continue;
 		}
 
-		// Regular commits - check against parents, for which there is usually one
-		// (if there are no branches)
+		// Check each parent
 		for parent_id in parent_ids {
-			// Resolve to the respective commit
 			let parent_commit = repo.find_commit(parent_id)?;
-
 			let parent_tree = parent_commit.tree()?;
 
-			// Then look at both the parent and current
-			let in_parent = parent_tree.lookup_entry_by_path(target).is_ok();
-			let in_current = tree.lookup_entry_by_path(target).is_ok();
+			let in_parent = matches!(parent_tree.lookup_entry_by_path(target), Ok(Some(_)));
+			let in_current = matches!(tree.lookup_entry_by_path(target), Ok(Some(_)));
 
 			if in_current && !in_parent {
 				println!("File first created in commit {}", commit.id());
+				if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
+					print_file_contents(repo, &entry)?;
+				}
 				return Ok(());
+			}
+
+			if in_current && in_parent {
+				track_file_changes(repo, &parent_tree, &tree, target)?;
 			}
 		}
 	}
@@ -161,17 +164,31 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 	Ok(())
 }
 
-fn get_commit_contents(
+fn track_file_changes(
 	repo: &Repository,
-	commit: Commit,
+	parent_tree: &Tree,
+	current_tree: &Tree,
 	path: &str,
-) -> Result<String, Box<dyn Error>> {
-	// Get the entry of the tree where our file is found
-	let tree = commit.tree()?;
-	let entry = tree.lookup_entry_by_path(path)?.expect("We know it's here already");
+) -> Result<(), Box<dyn Error>> {
+	let parent_entry = parent_tree.lookup_entry_by_path(path)?.unwrap();
+	let current_entry = current_tree.lookup_entry_by_path(path)?.unwrap();
 
-	// Load its data
+	// Check if content changed
+	if parent_entry.id() != current_entry.id() {
+		println!("  File modified: {}", path);
+		// You can diff here if needed
+	}
+
+	Ok(())
+}
+
+fn print_file_contents(repo: &Repository, entry: &Entry) -> Result<(), Box<dyn Error>> {
+	if !entry.mode().is_blob() {
+		return Ok(());
+	}
+
 	let blob = repo.find_blob(entry.id())?;
-
-	Ok(blob.data.clone().into_string()?)
+	let content = blob.data.clone().into_string()?;
+	println!("Content:\n{}", content);
+	Ok(())
 }
