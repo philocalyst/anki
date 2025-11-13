@@ -124,7 +124,34 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	let parsed = parser_method.parse(&file_content).unwrap();
 
+	for code in parsed {
+		get_text_content(&code)
+	}
+
 	Ok(())
+}
+
+fn get_text_content(card: &Note) -> String {
+	let mut string_builder = String::new();
+
+	for field in &card.fields {
+		// Iterate by reference
+		string_builder.push_str(&field.name);
+
+		let field_content = field
+            .content
+            .iter()
+            .map(|part| match part {
+                types::note::TextElement::Text(text) => text.as_str(), // Borrow directly
+                types::note::TextElement::Cloze(cloze) => cloze.answer.as_str(), // Borrow directly
+            })
+            .collect::<Vec<&str>>() // Collect references
+            .join(""); // Join blankly for raw text content
+
+		string_builder.push_str(&field_content);
+	}
+
+	string_builder
 }
 
 // Creates the main UUID based off of the author of the initial commit and the
