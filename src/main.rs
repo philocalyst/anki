@@ -139,6 +139,9 @@ impl Deck {
 	fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
 		info!("Generating UUIDs for notes in {}", target_file);
 
+		// Generating against the initial point of creation for the file, taking into
+		// account renames. This should keep things stable as long as the git repo is
+		// the token of trade
 		let (entry, commit) = self.find_initial_file_creation(target_file)?;
 		let host_uuid =
 			UuidGenerator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
@@ -322,7 +325,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let models = ModelLoader::load_models(&model_paths, &deck_path)?;
 
 	// Open repository
-	// TODO: Make this path configurable
 	let repo_path = deck_path.join(".git");
 	info!("Opening repository at: {:?}", repo_path);
 	let backing_vcs = gix::open(repo_path)?;
@@ -345,10 +347,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 			}
 
 			// Generate UUIDs
-			let uuids = deck.generate_note_uuids("index.flash")?;
+			let uuids = deck.generate_note_uuids("index.flash")?; // TODO: Make this run per the card file
 			info!("Generated UUIDs:");
+
 			for uuid in uuids {
-				info!("  {}", uuid);
+				info!("{}", uuid);
 			}
 		}
 		Err(error) => {
