@@ -1,249 +1,386 @@
-use std::{error::Error, fs::{self, write}, path::{Path, PathBuf}, sync::Arc};
+use std::{error::Error, fmt, fs, path::{Path, PathBuf}};
 
 use chumsky::Parser;
-use fs_err::read;
-use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, diff::index::{Change, ChangeRef}, object::tree::{Entry, EntryRef}, open};
-use serde::Serialize;
+use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{parse::parser, types::{crowd_anki_models::CrowdAnkiEntity, note::{Note, NoteModel}}};
-
-struct Deck<'a> {
-	cards:       Vec<Note<'a>>,
-	models:      Vec<NoteModel>,
-	backing_vcs: Repository,
-}
+use crate::{parse::parser, types::note::{Note, NoteModel, TextElement}};
 
 mod parse;
 mod types;
 
-fn find_model<'a>(
-	name: &str,
-	available_models: &'a [NoteModel],
-) -> Result<&'a NoteModel, Box<dyn Error>> {
-	for model in available_models {
-		if model.name == name {
-			return Ok(model);
-		}
-	}
+// ============================================================================
+// Error Types
+// ============================================================================
 
-	return Err("Model doesn't exist".into());
+#[derive(Debug)]
+pub enum DeckError {
+	NoDeckFound,
+	ModelNotFound(String),
+	FileNotInHistory(String),
+	InvalidEntry,
 }
 
-fn is_deck_dir<P: AsRef<Path>>(path: P) -> bool {
-	let p = path.as_ref();
-	// is_dir() will return false if it doesn't exist or isn't a dir
-	p.is_dir() && p.extension().and_then(|e| e.to_str()) == Some("deck")
+impl fmt::Display for DeckError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::NoDeckFound => write!(f, "No .deck directory found"),
+			Self::ModelNotFound(name) => write!(f, "Model '{}' not found", name),
+			Self::FileNotInHistory(path) => write!(f, "File '{}' not found in history", path),
+			Self::InvalidEntry => write!(f, "Invalid tree entry"),
+		}
+	}
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-	// Check for a deck
-	let mut dirs = Vec::new();
-	for entry in fs::read_dir(".")? {
-		let entry = entry?;
-		if entry.file_type()?.is_dir() {
-			dirs.push(entry.path());
-		}
+impl Error for DeckError {}
+
+// ============================================================================
+// Core Types
+// ============================================================================
+
+struct Deck {
+	models:      Vec<NoteModel>,
+	backing_vcs: Repository,
+}
+
+impl Deck {
+	#[instrument(skip(backing_vcs))]
+	fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
+		info!("Creating deck with {} models", models.len());
+		Self { models, backing_vcs }
 	}
 
-	let deck: PathBuf = dirs.into_iter().find(|dir| is_deck_dir(dir)).unwrap();
-
-	// Get the models and flashcards in the deck
-	let mut models = Vec::new();
-	let mut cards = Vec::new();
-	for entry in fs::read_dir(deck)? {
-		let entry = entry?;
-		if entry.file_type()?.is_dir() {
-			models.push(entry.path());
-		} else if entry.path().extension().and_then(|ext| ext.to_str()) == Some("flash") {
-			cards.push(entry.path());
-		}
+	#[instrument(skip(self))]
+	fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
+		debug!("Looking for model: {}", name);
+		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
+			warn!("Model '{}' not found", name);
+			DeckError::ModelNotFound(name.to_string())
+		})
 	}
 
-	let mut all_models: Vec<NoteModel> = Vec::new();
-
-	let backing_vcs: Repository;
-	backing_vcs = open("/Users/philocalyst/Projects/anki/COVID.deck/.git")?;
-
-	for model in models.clone() {
-		let config = model.join("config.toml");
-
-		// Load config first
-		let example_config = fs::read_to_string(config)?;
-		let mut config: NoteModel = toml::from_str(&example_config).unwrap();
-
-		config.complete(Path::new("/Users/philocalyst/Projects/anki/COVID.deck/ClozeWithSource"))?;
-
-		all_models.push(config);
-		break;
+	#[instrument(skip(self))]
+	fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
+		debug!("Parsing card content");
+		let parser = parser(&self.models);
+		Ok(parser.parse(content).unwrap())
 	}
 
-	let example_content = fs::read_to_string(cards[0].clone())?;
+	#[instrument(skip(self))]
+	fn find_initial_file_creation(&self, target: &str) -> Result<(Entry, Commit), Box<dyn Error>> {
+		info!("Finding initial creation of file: {}", target);
 
-	let binding = all_models.clone();
-	let parser_method = parser(binding.as_slice());
-	let parse_result = parser_method.parse(&example_content);
+		let mut head = self.backing_vcs.head()?;
+		let revwalk = self.backing_vcs.rev_walk([head.peel_to_object()?.id()]);
 
-	let deck =
-		Deck { cards: parse_result.clone().into_result().unwrap(), models: all_models, backing_vcs };
+		for commit_id in revwalk.all()? {
+			let commit_id = commit_id?;
+			let commit = self.backing_vcs.find_commit(commit_id.id())?;
+			let tree = commit.tree()?;
 
-	match parse_result.clone().into_result() {
-		Ok(cards) => {
-			println!("  Cards:");
-			for card in &cards {
-				for field in card.fields.clone() {
-					println!("{} : {:?}", field.name, field.content);
+			let parent_ids: Vec<_> = commit.parent_ids().collect();
+
+			// Initial commit
+			if parent_ids.is_empty() {
+				if let Some(entry) = tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob()) {
+					info!("File created in initial commit {}", commit.id());
+					return Ok((entry, commit));
 				}
-				if !card.tags.is_empty() {
-					println!("    Tags: {:?}", card.tags);
+				continue;
+			}
+
+			// Check each parent
+			for parent_id in parent_ids {
+				let parent_commit = self.backing_vcs.find_commit(parent_id)?;
+				let parent_tree = parent_commit.tree()?;
+
+				let in_parent = parent_tree.lookup_entry_by_path(target)?.is_some();
+				let in_current = tree.lookup_entry_by_path(target)?.is_some();
+
+				if in_current && !in_parent {
+					info!("File first created in commit {}", commit.id());
+					if let Some(entry) = tree.lookup_entry_by_path(target)? {
+						return Ok((entry, commit));
+					}
 				}
-				println!();
-			}
-			println!("---");
-		}
 
-		Err(errors) => {
-			eprintln!("Parsing errors:");
-			for error in errors {
-				eprintln!("  {}", error);
+				if in_current && in_parent {
+					self.track_file_changes(&parent_tree, &tree, target)?;
+				}
 			}
 		}
+
+		error!("File not found in repository history");
+		Err(DeckError::FileNotInHistory(target.to_string()).into())
 	}
 
-	let first_relevant = find_initial_file_creation(&deck.backing_vcs)?;
+	#[instrument(skip(self, parent_tree, current_tree))]
+	fn track_file_changes(
+		&self,
+		parent_tree: &Tree,
+		current_tree: &Tree,
+		path: &str,
+	) -> Result<(), Box<dyn Error>> {
+		let parent_entry = parent_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
+		let current_entry = current_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
 
-	let seed = first_relevant.1;
+		if parent_entry.id() != current_entry.id() {
+			debug!("File modified: {}", path);
+		}
 
-	let host_uuid = create_host_uuid(seed.author()?.name.to_string(), seed.time()?.seconds);
-
-	let parser2 = parser(binding.as_slice());
-
-	let file_content = file_content(&deck.backing_vcs, &first_relevant.0)?;
-
-	let parser_method = parser(binding.as_slice());
-
-	let parsed = parser_method.parse(&file_content).unwrap();
-
-	for code in parsed {
-		let content = get_text_content(&code);
-
-		// Generate the UUID against the host_uuid for the repo
-		let relevant_uuid = Uuid::new_v5(&host_uuid, content.as_bytes());
-
-		dbg!(relevant_uuid);
+		Ok(())
 	}
 
-	Ok(())
+	#[instrument(skip(self))]
+	fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
+		if !entry.mode().is_blob() {
+			return Err(DeckError::InvalidEntry.into());
+		}
+
+		let blob = self.backing_vcs.find_blob(entry.id())?;
+		let content = blob.data.clone().into_string()?;
+		Ok(content)
+	}
+
+	#[instrument(skip(self))]
+	fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
+		info!("Generating UUIDs for notes in {}", target_file);
+
+		let (entry, commit) = self.find_initial_file_creation(target_file)?;
+		let host_uuid =
+			UuidGenerator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
+
+		let file_content = self.read_file_content(&entry)?;
+		let notes = self.parse_cards(&file_content)?;
+
+		let uuids = notes
+			.iter()
+			.map(|note| {
+				let content = note_to_content_string(note);
+				UuidGenerator::generate_note_uuid(&host_uuid, &content)
+			})
+			.collect();
+
+		debug!("Generated {} UUIDs", notes.len());
+		Ok(uuids)
+	}
 }
 
-fn get_text_content(card: &Note) -> String {
-	let mut string_builder = String::new();
+// ============================================================================
+// Note Utilities
+// ============================================================================
 
-	for field in &card.fields {
-		// Iterate by reference
-		string_builder.push_str(&field.name);
+/// Generate a deterministic string representation of the note's content
+/// for UUID generation
+#[instrument(skip(note))]
+fn note_to_content_string(note: &Note) -> String {
+	let mut content = String::new();
+
+	for field in &note.fields {
+		content.push_str(&field.name);
 
 		let field_content = field
-            .content
-            .iter()
-            .map(|part| match part {
-                types::note::TextElement::Text(text) => text.as_str(), // Borrow directly
-                types::note::TextElement::Cloze(cloze) => cloze.answer.as_str(), // Borrow directly
-            })
-            .collect::<Vec<&str>>() // Collect references
-            .join("\0"); // Join with null byte for consistent hashing
+			.content
+			.iter()
+			.map(|part| match part {
+				TextElement::Text(text) => text.as_str(),
+				TextElement::Cloze(cloze) => cloze.answer.as_str(),
+			})
+			.collect::<Vec<&str>>()
+			.join("\0");
 
-		string_builder.push_str(&field_content);
+		content.push_str(&field_content);
 	}
 
-	string_builder
+	content
 }
 
-// Creates the main UUID based off of the author of the initial commit and the
-// time it was made
-fn create_host_uuid(author: String, time: i64) -> Uuid {
-	// This is very finicky what we're doing, and falls apart under any rebase
-	// conditions. I don't know what could be more robust, as I don't imagine that
-	// being a common case, and for deterministic and repeatable generation it
-	// would need to be tied to something like this in the first place.
-
-	let namespace = format!("{}{}", author, time);
-	Uuid::new_v5(&Uuid::NAMESPACE_DNS, namespace.as_bytes())
+#[instrument(skip(note))]
+fn print_note_debug(note: &Note) {
+	for field in &note.fields {
+		info!("{} : {:?}", field.name, field.content);
+	}
+	if !note.tags.is_empty() {
+		info!("Tags: {:?}", note.tags);
+	}
 }
 
-fn find_initial_file_creation(repo: &Repository) -> Result<(Entry, Commit), Box<dyn Error>> {
-	let mut head = repo.head()?;
-	let target = "index.flash";
+// ============================================================================
+// UUID Generation
+// ============================================================================
 
-	let revwalk = repo.rev_walk([head.peel_to_object()?.id()]);
+struct UuidGenerator;
 
-	for commit_id in revwalk.all()? {
-		let commit_id = commit_id?;
-		let commit = repo.find_commit(commit_id.id())?;
-		let tree = commit.tree()?;
+impl UuidGenerator {
+	/// Creates the main UUID based on the author of the initial commit and the
+	/// time
+	#[instrument]
+	fn create_host_uuid(author: String, time: i64) -> Uuid {
+		debug!("Creating host UUID for author: {}, time: {}", author, time);
 
-		let parent_ids: Vec<_> = commit.parent_ids().collect();
+		// Note: This is fragile and will break under rebase conditions
+		// This is inherent to the design for deterministic generation
+		let namespace = format!("{}{}", author, time);
+		Uuid::new_v5(&Uuid::NAMESPACE_DNS, namespace.as_bytes())
+	}
 
-		// Initial commit
-		if parent_ids.is_empty() {
-			if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
-				if entry.mode().is_blob() {
-					println!("File created in initial commit {}", commit.id());
-					return Ok((entry, commit));
-				}
+	/// Generate a UUID for a specific note based on its content
+	#[instrument(skip(content))]
+	fn generate_note_uuid(host_uuid: &Uuid, content: &str) -> Uuid {
+		Uuid::new_v5(host_uuid, content.as_bytes())
+	}
+}
+
+// ============================================================================
+// Deck Discovery
+// ============================================================================
+
+struct DeckLocator;
+
+impl DeckLocator {
+	#[instrument]
+	fn find_deck_directory() -> Result<PathBuf, Box<dyn Error>> {
+		info!("Searching for deck directory");
+
+		let dirs: Vec<PathBuf> = fs::read_dir(".")?
+			.filter_map(Result::ok)
+			.filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+			.map(|entry| entry.path())
+			.collect();
+
+		dirs.into_iter().find(|dir| Self::is_deck_dir(dir)).ok_or_else(|| {
+			error!("No deck directory found");
+			DeckError::NoDeckFound.into()
+		})
+	}
+
+	fn is_deck_dir(path: &Path) -> bool {
+		path.is_dir() && path.extension().and_then(|e| e.to_str()) == Some("deck")
+	}
+
+	#[instrument]
+	fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), Box<dyn Error>> {
+		info!("Scanning deck contents at {:?}", deck_path);
+
+		let mut models = Vec::new();
+		let mut cards = Vec::new();
+
+		for entry in fs::read_dir(deck_path)? {
+			let entry = entry?;
+			let path = entry.path();
+
+			if entry.file_type()?.is_dir() {
+				debug!("Found model directory: {:?}", path);
+				models.push(path);
+			} else if path.extension().and_then(|ext| ext.to_str()) == Some("flash") {
+				debug!("Found card file: {:?}", path);
+				cards.push(path);
 			}
-			continue;
 		}
 
-		// Check each parent
-		for parent_id in parent_ids {
-			let parent_commit = repo.find_commit(parent_id)?;
-			let parent_tree = parent_commit.tree()?;
+		info!("Found {} models and {} card files", models.len(), cards.len());
+		Ok((models, cards))
+	}
+}
 
-			let in_parent = matches!(parent_tree.lookup_entry_by_path(target), Ok(Some(_)));
-			let in_current = matches!(tree.lookup_entry_by_path(target), Ok(Some(_)));
+// ============================================================================
+// Model Loading
+// ============================================================================
 
-			if in_current && !in_parent {
-				println!("File first created in commit {}", commit.id());
-				if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
-					return Ok((entry, commit));
-				}
+struct ModelLoader;
+
+impl ModelLoader {
+	#[instrument]
+	fn load_models(
+		model_paths: &[PathBuf],
+		deck_path: &Path,
+	) -> Result<Vec<NoteModel>, Box<dyn Error>> {
+		info!("Loading {} models", model_paths.len());
+
+		let mut all_models = Vec::new();
+
+		for model_path in model_paths {
+			let config_path = model_path.join("config.toml");
+			debug!("Loading model config from {:?}", config_path);
+
+			let config_content = fs::read_to_string(&config_path)?;
+			let mut model: NoteModel = toml::from_str(&config_content)?;
+
+			// TODO: This path should be more dynamic
+			model.complete(deck_path)?;
+
+			info!("Loaded model: {}", model.name);
+			all_models.push(model);
+
+			// TODO: Remove this break when ready to process all models
+			break;
+		}
+
+		Ok(all_models)
+	}
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
+#[instrument]
+fn main() -> Result<(), Box<dyn Error>> {
+	// Initialize tracing
+	tracing_subscriber::fmt().with_target(false).with_level(true).init();
+
+	info!("Starting Anki deck parser");
+
+	// Find and scan deck
+	let deck_path = DeckLocator::find_deck_directory()?;
+	info!("Found deck at: {:?}", deck_path);
+
+	let (model_paths, card_paths) = DeckLocator::scan_deck_contents(&deck_path)?;
+
+	if card_paths.is_empty() {
+		warn!("No card files found");
+		return Ok(());
+	}
+
+	// Load models
+	let models = ModelLoader::load_models(&model_paths, &deck_path)?;
+
+	// Open repository
+	// TODO: Make this path configurable
+	let repo_path = "/Users/philocalyst/Projects/anki/COVID.deck/.git";
+	info!("Opening repository at: {}", repo_path);
+	let backing_vcs = gix::open(repo_path)?;
+
+	// Create deck
+	let deck = Deck::new(models, backing_vcs);
+
+	// Parse first card file as example
+	let first_card_path = &card_paths[0];
+	info!("Parsing card file: {:?}", first_card_path);
+	let card_content = fs::read_to_string(first_card_path)?;
+
+	let parse_result = deck.parse_cards(&card_content);
+
+	match parse_result {
+		Ok(cards) => {
+			info!("Successfully parsed {} cards", cards.len());
+			for card in &cards {
+				print_note_debug(card);
 			}
 
-			if in_current && in_parent {
-				track_file_changes(repo, &parent_tree, &tree, target)?;
+			// Generate UUIDs
+			let uuids = deck.generate_note_uuids("index.flash")?;
+			info!("Generated UUIDs:");
+			for uuid in uuids {
+				info!("  {}", uuid);
 			}
+		}
+		Err(error) => {
+			error!("Parsing error: {}", error);
 		}
 	}
 
-	println!("File not found in repository history");
-	todo!()
-}
-
-fn track_file_changes(
-	repo: &Repository,
-	parent_tree: &Tree,
-	current_tree: &Tree,
-	path: &str,
-) -> Result<(), Box<dyn Error>> {
-	let parent_entry = parent_tree.lookup_entry_by_path(path)?.unwrap();
-	let current_entry = current_tree.lookup_entry_by_path(path)?.unwrap();
-
-	// Check if content changed
-	if parent_entry.id() != current_entry.id() {
-		println!("  File modified: {}", path);
-		// You can diff here if needed
-	}
-
+	info!("Deck parsing completed");
 	Ok(())
-}
-
-fn file_content(repo: &Repository, entry: &Entry) -> Result<String, Box<dyn Error>> {
-	if !entry.mode().is_blob() {
-		todo!()
-	}
-
-	let blob = repo.find_blob(entry.id())?;
-	let content = blob.data.clone().into_string()?;
-	Ok(content)
 }
