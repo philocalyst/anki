@@ -20,11 +20,8 @@ pub(crate) fn determine_change(
 		return Ok(None);
 	}
 
-	// This is likely to be a deletion or modification, the job now is to determine
-	// which one and where
 	if deck_1.len() != deck_2.len() {
-		for (index, (card1, card2)) in deck_1.into_iter().zip(deck_2.into_iter()).enumerate() {
-			// We've identified a divergence.
+		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 			if card1 != card2 {
 				// We're checking if this card is now out of order or no longer exists
 				if deck_2.iter().find(|n| *n == card1).is_some() {
@@ -36,12 +33,34 @@ pub(crate) fn determine_change(
 				}
 			}
 		}
+
+		// Handle trailing additions/deletions
+		if deck_1.len() < deck_2.len() {
+			return Ok(Some(ChangeType::Addition(deck_1.len())));
+		} else {
+			return Ok(Some(ChangeType::Deletion(deck_2.len())));
+		}
 	} else {
-		// If the two decks have the same amount of cards, and yet are not equal,
-		// this means a modification has occured
-		for (index, (card1, card2)) in deck_1.into_iter().zip(deck_2.into_iter()).enumerate() {
-			if card1 != card2 {
-				return Ok(Some(ChangeType::Modification(index)));
+		// Same length - could be modification or reordering
+		// Check if it's a reorder (same cards, different order)
+		let mut sorted_1 = deck_1.clone();
+		let mut sorted_2 = deck_2.clone();
+		sorted_1.sort();
+		sorted_2.sort();
+
+		if sorted_1 == sorted_2 {
+			// It's a reorder - find first difference
+			for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
+				if card1 != card2 {
+					return Ok(Some(ChangeType::Reordering(index)));
+				}
+			}
+		} else {
+			// It's a modification - find first difference
+			for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
+				if card1 != card2 {
+					return Ok(Some(ChangeType::Modification(index)));
+				}
 			}
 		}
 	}
