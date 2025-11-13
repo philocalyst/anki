@@ -1,3 +1,6 @@
+use core::fmt;
+use std::error::Error;
+
 #[derive(Debug)]
 pub enum DeckError {
 	NoDeckFound,

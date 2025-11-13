@@ -1,11 +1,8 @@
-use std::{error::Error, fmt, fs, path::{Path, PathBuf}};
+use std::{error::Error, fs};
 
-use chumsky::Parser;
-use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
-use tracing::{debug, error, info, instrument, warn};
-use uuid::Uuid;
+use tracing::{error, info, instrument, warn};
 
-use crate::{deck_locator::DeckLocator, error::DeckError, model_loader::ModelLoader, parse::parser, types::{crowd_anki_models::Deck, note::{Note, NoteModel, TextElement}}};
+use crate::{deck::Deck, deck_locator::DeckLocator, model_loader::ModelLoader, types::note::{Note, TextElement}};
 
 mod deck;
 mod deck_locator;
@@ -13,6 +10,7 @@ mod error;
 mod model_loader;
 mod parse;
 mod types;
+mod uuid_generator;
 
 /// Generate a deterministic string representation of the note's content
 /// for UUID generation
@@ -46,28 +44,6 @@ fn print_note_debug(note: &Note) {
 	}
 	if !note.tags.is_empty() {
 		info!("Tags: {:?}", note.tags);
-	}
-}
-
-struct UuidGenerator;
-
-impl UuidGenerator {
-	/// Creates the main UUID based on the author of the initial commit and the
-	/// time
-	#[instrument]
-	fn create_host_uuid(author: String, time: i64) -> Uuid {
-		debug!("Creating host UUID for author: {}, time: {}", author, time);
-
-		// Note: This is fragile and will break under rebase conditions
-		// This is inherent to the design for deterministic generation
-		let namespace = format!("{}{}", author, time);
-		Uuid::new_v5(&Uuid::NAMESPACE_DNS, namespace.as_bytes())
-	}
-
-	/// Generate a UUID for a specific note based on its content
-	#[instrument(skip(content))]
-	fn generate_note_uuid(host_uuid: &Uuid, content: &str) -> Uuid {
-		Uuid::new_v5(host_uuid, content.as_bytes())
 	}
 }
 

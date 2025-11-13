@@ -1,17 +1,26 @@
-struct Deck {
+use std::error::Error;
+
+use chumsky::Parser;
+use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
+use tracing::{debug, error, info, instrument, warn};
+use uuid::Uuid;
+
+use crate::{error::DeckError, note_to_content_string, parse::parser, types::note::{Note, NoteModel}, uuid_generator::UuidGenerator};
+
+pub(crate) struct Deck {
 	models:      Vec<NoteModel>,
 	backing_vcs: Repository,
 }
 
 impl Deck {
 	#[instrument(skip(backing_vcs))]
-	fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
+	pub(crate) fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
 		info!("Creating deck with {} models", models.len());
 		Self { models, backing_vcs }
 	}
 
 	#[instrument(skip(self))]
-	fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
+	pub(crate) fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
 		debug!("Looking for model: {}", name);
 		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
 			warn!("Model '{}' not found", name);
@@ -20,14 +29,20 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
+	pub(crate) fn parse_cards<'a>(
+		&'a self,
+		content: &'a str,
+	) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
 		debug!("Parsing card content");
 		let parser = parser(&self.models);
 		Ok(parser.parse(content).unwrap())
 	}
 
 	#[instrument(skip(self))]
-	fn find_initial_file_creation(&self, target: &str) -> Result<(Entry, Commit), Box<dyn Error>> {
+	pub(crate) fn find_initial_file_creation(
+		&self,
+		target: &str,
+	) -> Result<(Entry, Commit), Box<dyn Error>> {
 		info!("Finding initial creation of file: {}", target);
 
 		let mut head = self.backing_vcs.head()?;
@@ -75,7 +90,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self, parent_tree, current_tree))]
-	fn track_file_changes(
+	pub(crate) fn track_file_changes(
 		&self,
 		parent_tree: &Tree,
 		current_tree: &Tree,
@@ -92,7 +107,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
+	pub(crate) fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
 		if !entry.mode().is_blob() {
 			return Err(DeckError::InvalidEntry.into());
 		}
@@ -103,7 +118,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
+	pub(crate) fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
 		info!("Generating UUIDs for notes in {}", target_file);
 
 		// Generating against the initial point of creation for the file, taking into

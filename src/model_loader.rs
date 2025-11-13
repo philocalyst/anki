@@ -1,3 +1,9 @@
+use std::{error::Error, fs, path::{Path, PathBuf}};
+
+use tracing::{debug, info, instrument};
+
+use crate::types::note::NoteModel;
+
 pub(crate) struct ModelLoader;
 
 impl ModelLoader {
