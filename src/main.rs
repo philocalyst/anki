@@ -4,7 +4,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}};
 
-mod deck;
+mod change_router;
 mod deck_locator;
 mod error;
 mod model_loader;
