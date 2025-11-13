@@ -52,11 +52,12 @@ pub(crate) fn determine_change(
 			// It's a reorder - find first difference
 			for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 				if card1 != card2 {
+					// TODO: Fix this to return a precise mapping of old to new, index isn't enough.
 					return Ok(Some(ChangeType::Reordering(index)));
 				}
 			}
 		} else {
-			// It's a modification - find first difference
+			// It's a modification - find first difference among the cards
 			for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 				if card1 != card2 {
 					return Ok(Some(ChangeType::Modification(index)));
