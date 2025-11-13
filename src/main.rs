@@ -5,8 +5,10 @@ use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::En
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::parser, types::{crowd_anki_models::Deck, note::{Note, NoteModel, TextElement}}};
+use crate::{deck_locator::DeckLocator, error::DeckError, model_loader::ModelLoader, parse::parser, types::{crowd_anki_models::Deck, note::{Note, NoteModel, TextElement}}};
 
+mod deck;
+mod deck_locator;
 mod error;
 mod model_loader;
 mod parse;
@@ -66,86 +68,6 @@ impl UuidGenerator {
 	#[instrument(skip(content))]
 	fn generate_note_uuid(host_uuid: &Uuid, content: &str) -> Uuid {
 		Uuid::new_v5(host_uuid, content.as_bytes())
-	}
-}
-
-struct DeckLocator;
-
-impl DeckLocator {
-	#[instrument]
-	fn find_deck_directory() -> Result<PathBuf, Box<dyn Error>> {
-		info!("Searching for deck directory");
-
-		let dirs: Vec<PathBuf> = fs::read_dir(".")?
-			.filter_map(Result::ok)
-			.filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
-			.map(|entry| entry.path())
-			.collect();
-
-		dirs.into_iter().find(|dir| Self::is_deck_dir(dir)).ok_or_else(|| {
-			error!("No deck directory found");
-			DeckError::NoDeckFound.into()
-		})
-	}
-
-	fn is_deck_dir(path: &Path) -> bool {
-		path.is_dir() && path.extension().and_then(|e| e.to_str()) == Some("deck")
-	}
-
-	#[instrument]
-	fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), Box<dyn Error>> {
-		info!("Scanning deck contents at {:?}", deck_path);
-
-		let mut models = Vec::new();
-		let mut cards = Vec::new();
-
-		for entry in fs::read_dir(deck_path)? {
-			let entry = entry?;
-			let path = entry.path();
-
-			if entry.file_type()?.is_dir()
-				&& entry.path().extension().and_then(|ext| ext.to_str()) == Some("model")
-			{
-				debug!("Found model directory: {:?}", path);
-				models.push(path);
-			} else if path.extension().and_then(|ext| ext.to_str()) == Some("flash") {
-				debug!("Found card file: {:?}", path);
-				cards.push(path);
-			}
-		}
-
-		info!("Found {} models and {} card files", models.len(), cards.len());
-		Ok((models, cards))
-	}
-}
-
-struct ModelLoader;
-
-impl ModelLoader {
-	#[instrument]
-	fn load_models(
-		model_paths: &[PathBuf],
-		deck_path: &Path,
-	) -> Result<Vec<NoteModel>, Box<dyn Error>> {
-		info!("Loading {} models", model_paths.len());
-
-		let mut all_models = Vec::new();
-
-		for model_path in model_paths {
-			let config_path = model_path.join("config.toml");
-			debug!("Loading model config from {:?}", config_path);
-
-			let config_content = fs::read_to_string(&config_path)?;
-			let mut model: NoteModel = toml::from_str(&config_content)?;
-
-			// TODO: This path should be more dynamic
-			model.complete(deck_path)?;
-
-			info!("Loaded model: {}", model.name);
-			all_models.push(model);
-		}
-
-		Ok(all_models)
 	}
 }
 
