@@ -126,6 +126,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	for code in parsed {
 		let content = get_text_content(&code);
+
+		// Generate the UUID against the host_uuid for the repo
 		let relevant_uuid = Uuid::new_v5(&host_uuid, content.as_bytes());
 
 		dbg!(relevant_uuid);
@@ -160,6 +162,11 @@ fn get_text_content(card: &Note) -> String {
 // Creates the main UUID based off of the author of the initial commit and the
 // time it was made
 fn create_host_uuid(author: String, time: i64) -> Uuid {
+	// This is very finicky what we're doing, and falls apart under any rebase
+	// conditions. I don't know what could be more robust, as I don't imagine that
+	// being a common case, and for deterministic and repeatable generation it
+	// would need to be tied to something like this in the first place.
+
 	let namespace = format!("{}{}", author, time);
 	Uuid::new_v5(&Uuid::NAMESPACE_DNS, namespace.as_bytes())
 }
