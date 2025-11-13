@@ -6,20 +6,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::config::{Defaults, Template};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct Note<'a> {
 	pub fields: Vec<NoteField>,
 	pub model:  &'a NoteModel,
 	pub tags:   Vec<String>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, PartialOrd, Ord, Default, Eq, Clone, PartialEq)]
 pub struct NoteField {
 	pub name:    String,
 	pub content: Vec<TextElement>,
 }
 
-#[derive(Debug, Eq, Hash, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Eq, PartialOrd, Ord, Hash, Deserialize, Clone, PartialEq)]
 pub struct NoteModel {
 	pub name: String,
 
@@ -47,26 +47,25 @@ pub struct NoteModel {
 	// The field to sort around
 	pub sort_field: Option<String>,
 	pub tags:       Option<Vec<String>>,
-
 	// The required fields are determined at runtime, this String holds a boolean expression that
 	// affirms this.
-	pub required: Node,
+	// pub required: Node,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Ord, PartialOrd, Eq, Clone, PartialEq)]
 pub struct Cloze {
 	pub id:     u32,
 	pub answer: String,
 	pub hint:   Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialOrd, Ord, Eq, Clone, PartialEq)]
 pub enum TextElement {
 	Text(String),
 	Cloze(Cloze),
 }
 
-#[derive(Deserialize, Eq, Hash, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Ord, PartialOrd, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Field {
 	pub name:             String,
 	pub sticky:           Option<bool>,
