@@ -42,7 +42,7 @@ impl Deck {
 	pub(crate) fn find_initial_file_creation(
 		&self,
 		target: &str,
-	) -> Result<(Entry, Commit), Box<dyn Error>> {
+	) -> Result<(Entry<'_>, Commit<'_>), Box<dyn Error>> {
 		info!("Finding initial creation of file: {}", target);
 
 		let mut head = self.backing_vcs.head()?;

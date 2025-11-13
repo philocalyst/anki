@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::types::{deck::Deck, note::Note};
+use crate::types::note::Note;
 
 #[derive(Debug)]
 pub(crate) enum ChangeType {

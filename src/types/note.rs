@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
-use evalexpr::Node;
 use semver::Version;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::types::config::{Defaults, Template};
 
