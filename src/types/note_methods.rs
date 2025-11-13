@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::Path};
 
-use crate::types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, Note, NoteModelType}, note::Cloze};
+use crate::types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, TextElement}};
 
 impl super::note::NoteModel {
 	pub fn complete(&mut self, dir: &Path) -> Result<(), Box<dyn Error>> {
@@ -83,6 +83,7 @@ impl super::note::NoteModel {
 	}
 }
 
+use tracing::instrument;
 use uuid::Uuid;
 
 impl<'a> From<Vec<crate::types::note::Note<'a>>> for CrowdAnkiEntity {
@@ -156,6 +157,33 @@ impl<'a> From<Vec<crate::types::note::Note<'a>>> for CrowdAnkiEntity {
 	}
 }
 
+impl<'a> crate::types::note::Note<'a> {
+	/// Generate a deterministic string representation of the note's content
+	/// for UUID generation
+	#[instrument(skip(self))]
+	pub(crate) fn to_content_string(&self) -> String {
+		let mut content = String::new();
+
+		for field in &self.fields {
+			content.push_str(&field.name);
+
+			let field_content = field
+				.content
+				.iter()
+				.map(|part| match part {
+					TextElement::Text(text) => text.as_str(),
+					TextElement::Cloze(cloze) => cloze.answer.as_str(),
+				})
+				.collect::<Vec<&str>>()
+				.join("\0");
+
+			content.push_str(&field_content);
+		}
+
+		content
+	}
+}
+
 impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::NoteModel {
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {
@@ -222,6 +250,8 @@ impl<'a> From<Cloze> for ClozeString {
 		}
 	}
 }
+
+use crate::types::crowd_anki_models::Note;
 
 impl<'a> From<crate::types::note::Note<'a>> for Note {
 	fn from(note: crate::types::note::Note<'a>) -> Self {

@@ -12,31 +12,6 @@ mod parse;
 mod types;
 mod uuid_generator;
 
-/// Generate a deterministic string representation of the note's content
-/// for UUID generation
-#[instrument(skip(note))]
-fn note_to_content_string(note: &Note) -> String {
-	let mut content = String::new();
-
-	for field in &note.fields {
-		content.push_str(&field.name);
-
-		let field_content = field
-			.content
-			.iter()
-			.map(|part| match part {
-				TextElement::Text(text) => text.as_str(),
-				TextElement::Cloze(cloze) => cloze.answer.as_str(),
-			})
-			.collect::<Vec<&str>>()
-			.join("\0");
-
-		content.push_str(&field_content);
-	}
-
-	content
-}
-
 #[instrument(skip(note))]
 fn print_note_debug(note: &Note) {
 	for field in &note.fields {
