@@ -4,6 +4,7 @@ use chumsky::Parser;
 use fs_err::read;
 use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, diff::index::{Change, ChangeRef}, object::tree::{Entry, EntryRef}, open};
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::{parse::parser, types::{crowd_anki_models::CrowdAnkiEntity, note::{Note, NoteModel}}};
 
@@ -108,12 +109,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}
 	}
 
-	find_initial_file_creation(&deck.backing_vcs)?;
+	let first_relevant = find_initial_file_creation(&deck.backing_vcs)?;
+
+	let seed = first_relevant.1;
+
+	create_host_uuid(seed.author()?.name.to_string(), seed.time()?.seconds);
 
 	Ok(())
 }
 
-fn find_initial_file_creation(repo: &Repository) -> Result<Entry, Box<dyn Error>> {
+// Creates the main UUID based off of the author of the initial commit and the
+// time it was made
+fn create_host_uuid(author: String, time: i64) -> Uuid {
+	let namespace = format!("{}{}", author, time);
+	Uuid::new_v5(&Uuid::NAMESPACE_DNS, namespace.as_bytes())
+}
+
+fn find_initial_file_creation(repo: &Repository) -> Result<(Entry, Commit), Box<dyn Error>> {
 	let mut head = repo.head()?;
 	let target = "index.flash";
 
@@ -132,7 +144,7 @@ fn find_initial_file_creation(repo: &Repository) -> Result<Entry, Box<dyn Error>
 				if entry.mode().is_blob() {
 					println!("File created in initial commit {}", commit.id());
 					print_file_contents(repo, &entry)?;
-					return Ok(entry);
+					return Ok((entry, commit));
 				}
 			}
 			continue;
@@ -150,7 +162,7 @@ fn find_initial_file_creation(repo: &Repository) -> Result<Entry, Box<dyn Error>
 				println!("File first created in commit {}", commit.id());
 				if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
 					print_file_contents(repo, &entry)?;
-					return Ok(entry);
+					return Ok((entry, commit));
 				}
 			}
 
