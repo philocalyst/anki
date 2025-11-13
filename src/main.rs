@@ -113,7 +113,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	Ok(())
 }
 
-fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
+fn find_initial_file_creation(repo: &Repository) -> Result<Entry, Box<dyn Error>> {
 	let mut head = repo.head()?;
 	let target = "index.flash";
 
@@ -132,7 +132,7 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 				if entry.mode().is_blob() {
 					println!("File created in initial commit {}", commit.id());
 					print_file_contents(repo, &entry)?;
-					return Ok(());
+					return Ok(entry);
 				}
 			}
 			continue;
@@ -150,8 +150,8 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 				println!("File first created in commit {}", commit.id());
 				if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
 					print_file_contents(repo, &entry)?;
+					return Ok(entry);
 				}
-				return Ok(());
 			}
 
 			if in_current && in_parent {
@@ -161,7 +161,7 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(), Box<dyn Error>> {
 	}
 
 	println!("File not found in repository history");
-	Ok(())
+	todo!()
 }
 
 fn track_file_changes(
