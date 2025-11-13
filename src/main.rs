@@ -323,8 +323,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// Open repository
 	// TODO: Make this path configurable
-	let repo_path = "/Users/philocalyst/Projects/anki/COVID.deck/.git";
-	info!("Opening repository at: {}", repo_path);
+	let repo_path = deck_path.join(".git");
+	info!("Opening repository at: {:?}", repo_path);
 	let backing_vcs = gix::open(repo_path)?;
 
 	// Create deck
