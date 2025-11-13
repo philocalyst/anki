@@ -25,8 +25,8 @@ pub(crate) fn determine_change(
 			// We've identified a divergence.
 			if card1 != card2 {
 				// We're checking if this card is now out of order or no longer exists
-				if exists_in_deck(deck_2, card1) {
-					// If it does exist, it means that there was an addition
+				if deck_2.iter().find(|n| *n == card1).is_some() {
+					// It does exist, this means that there was an addition
 					return Ok(Some(ChangeType::Addition(index)));
 				} else {
 					// This is the case where it no longer exists
@@ -45,13 +45,4 @@ pub(crate) fn determine_change(
 	}
 
 	Ok(None)
-}
-
-fn exists_in_deck(deck: &Vec<Note>, target: &Note) -> bool {
-	for note in deck {
-		if note == target {
-			return true;
-		}
-	}
-	return false;
 }
