@@ -81,7 +81,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let example_content = fs::read_to_string(cards[0].clone())?;
 
 	let binding = all_models.clone();
-	let parse_result = parser(binding.as_slice()).parse(&example_content);
+	let parser_method = parser(binding.as_slice());
+	let parse_result = parser_method.parse(&example_content);
 
 	let deck =
 		Deck { cards: parse_result.clone().into_result().unwrap(), models: all_models, backing_vcs };
@@ -113,7 +114,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	let seed = first_relevant.1;
 
-	create_host_uuid(seed.author()?.name.to_string(), seed.time()?.seconds);
+	let host_uuid = create_host_uuid(seed.author()?.name.to_string(), seed.time()?.seconds);
+
+	let parser2 = parser(binding.as_slice());
+
+	let file_content = file_content(&deck.backing_vcs, &first_relevant.0)?;
+
+	let parser_method = parser(binding.as_slice());
+
+	let parsed = parser_method.parse(&file_content).unwrap();
 
 	Ok(())
 }
@@ -143,7 +152,6 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(Entry, Commit), Box<
 			if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
 				if entry.mode().is_blob() {
 					println!("File created in initial commit {}", commit.id());
-					print_file_contents(repo, &entry)?;
 					return Ok((entry, commit));
 				}
 			}
@@ -161,7 +169,6 @@ fn find_initial_file_creation(repo: &Repository) -> Result<(Entry, Commit), Box<
 			if in_current && !in_parent {
 				println!("File first created in commit {}", commit.id());
 				if let Ok(Some(entry)) = tree.lookup_entry_by_path(target) {
-					print_file_contents(repo, &entry)?;
 					return Ok((entry, commit));
 				}
 			}
@@ -194,13 +201,12 @@ fn track_file_changes(
 	Ok(())
 }
 
-fn print_file_contents(repo: &Repository, entry: &Entry) -> Result<(), Box<dyn Error>> {
+fn file_content(repo: &Repository, entry: &Entry) -> Result<String, Box<dyn Error>> {
 	if !entry.mode().is_blob() {
-		return Ok(());
+		todo!()
 	}
 
 	let blob = repo.find_blob(entry.id())?;
 	let content = blob.data.clone().into_string()?;
-	println!("Content:\n{}", content);
-	Ok(())
+	Ok(content)
 }
