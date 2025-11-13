@@ -252,7 +252,9 @@ impl DeckLocator {
 			let entry = entry?;
 			let path = entry.path();
 
-			if entry.file_type()?.is_dir() {
+			if entry.file_type()?.is_dir()
+				&& entry.path().extension().and_then(|ext| ext.to_str()) == Some("model")
+			{
 				debug!("Found model directory: {:?}", path);
 				models.push(path);
 			} else if path.extension().and_then(|ext| ext.to_str()) == Some("flash") {
@@ -290,9 +292,6 @@ impl ModelLoader {
 
 			info!("Loaded model: {}", model.name);
 			all_models.push(model);
-
-			// TODO: Remove this break when ready to process all models
-			break;
 		}
 
 		Ok(all_models)
