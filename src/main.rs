@@ -125,7 +125,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let parsed = parser_method.parse(&file_content).unwrap();
 
 	for code in parsed {
-		get_text_content(&code)
+		let content = get_text_content(&code);
+		let relevant_uuid = Uuid::new_v5(&host_uuid, content.as_bytes());
+
+		dbg!(relevant_uuid);
 	}
 
 	Ok(())
@@ -146,7 +149,7 @@ fn get_text_content(card: &Note) -> String {
                 types::note::TextElement::Cloze(cloze) => cloze.answer.as_str(), // Borrow directly
             })
             .collect::<Vec<&str>>() // Collect references
-            .join(""); // Join blankly for raw text content
+            .join("\0"); // Join with null byte for consistent hashing
 
 		string_builder.push_str(&field_content);
 	}
