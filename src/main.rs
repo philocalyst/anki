@@ -2,7 +2,7 @@ use std::{error::Error, fs};
 
 use tracing::{error, info, instrument, warn};
 
-use crate::{deck::Deck, deck_locator::DeckLocator, model_loader::ModelLoader, types::note::{Note, TextElement}};
+use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}};
 
 mod deck;
 mod deck_locator;
