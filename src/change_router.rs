@@ -3,9 +3,9 @@ use std::error::Error;
 use crate::types::{deck::Deck, note::Note};
 
 pub(crate) enum ChangeType {
-	Addition,
-	Deletion,
-	Modification,
+	Addition(usize),
+	Deletion(usize),
+	Modification(usize),
 }
 
 /// Determines the kind of change occured between two decks. A None value is
@@ -21,19 +21,25 @@ pub(crate) fn determine_change(
 	// This is likely to be a deletion or modification, the job now is to determine
 	// which one and where
 	if deck_1.len() != deck_2.len() {
-		for ((index1, card1), (index2, card2)) in
-			deck_1.into_iter().enumerate().zip(deck_2.into_iter().enumerate())
-		{
+		for (index, (card1, card2)) in deck_1.into_iter().zip(deck_2.into_iter()).enumerate() {
 			// We've identified a divergence.
 			if card1 != card2 {
 				// We're checking if this card is now out of order or no longer exists
 				if exists_in_deck(deck_2, card1) {
 					// If it does exist, it means that there was an addition
-					return Ok(Some(ChangeType::Addition));
+					return Ok(Some(ChangeType::Addition(index)));
 				} else {
 					// This is the case where it no longer exists
-					return Ok(Some(ChangeType::Deletion));
+					return Ok(Some(ChangeType::Deletion(index)));
 				}
+			}
+		}
+	} else {
+		// If the two decks have the same amount of cards, and yet are not equal,
+		// this means a modification has occured
+		for (index, (card1, card2)) in deck_1.into_iter().zip(deck_2.into_iter()).enumerate() {
+			if card1 != card2 {
+				return Ok(Some(ChangeType::Modification(index)));
 			}
 		}
 	}
