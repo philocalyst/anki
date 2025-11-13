@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{error::DeckError, parse::parser, types::{crowd_anki_models::Deck, note::{Note, NoteModel, TextElement}}};
 
 mod error;
+mod model_loader;
 mod parse;
 mod types;
 
