@@ -2,10 +2,12 @@ use std::error::Error;
 
 use crate::types::{deck::Deck, note::Note};
 
+#[derive(Debug)]
 pub(crate) enum ChangeType {
 	Addition(usize),
 	Deletion(usize),
 	Modification(usize),
+	Reordering(usize),
 }
 
 /// Determines the kind of change occured between two decks. A None value is
