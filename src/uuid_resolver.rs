@@ -10,11 +10,15 @@
 use chumsky::input::Input;
 use uuid::Uuid;
 
-use crate::{change_router::ChangeType, types::note::Note};
+use crate::{change_router::ChangeType, types::note::Note, uuid_generator::UuidGenerator};
 
 pub(crate) struct IdentifiedNote<'a> {
 	pub id:   Uuid,
 	pub note: &'a Note<'a>,
+}
+
+impl<'a> IdentifiedNote<'a> {
+	pub fn new(note: &'a Note, id: Uuid) -> Self { IdentifiedNote { id, note } }
 }
 
 /// This function takes a set of transformations, in order from earliest to
@@ -28,7 +32,13 @@ pub(crate) fn resolve_uuids<'a>(
 
 	for transformation in transformations {
 		match transformation {
-			ChangeType::Addition(_) => todo!(),
+			ChangeType::Addition((idx, new_note)) => {
+				// TODO: Consume a host UUID
+				let base_uuid =
+					UuidGenerator::generate_note_uuid(&Uuid::default(), &new_note.to_content_string());
+
+				result.insert(*idx, IdentifiedNote::new(&new_note, base_uuid));
+			}
 			ChangeType::Deletion(_) => todo!(),
 			ChangeType::Modification(_) => todo!(),
 			ChangeType::Reordering(_) => todo!(),
