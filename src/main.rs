@@ -11,6 +11,7 @@ mod model_loader;
 mod parse;
 mod types;
 mod uuid_generator;
+mod uuid_resolver;
 
 #[instrument(skip(note))]
 fn print_note_debug(note: &Note) {
