@@ -39,8 +39,12 @@ pub(crate) fn resolve_uuids<'a>(
 
 				result.insert(*idx, IdentifiedNote::new(&new_note, base_uuid));
 			}
-			ChangeType::Deletion(_) => todo!(),
-			ChangeType::Modification(_) => todo!(),
+			ChangeType::Deletion(idx) => {
+				result.remove(*idx);
+			}
+			ChangeType::Modification((idx, modified_note)) => {
+				result[*idx] = IdentifiedNote::new(modified_note, Uuid::default())
+			}
 			ChangeType::Reordering(_) => todo!(),
 		}
 	}
