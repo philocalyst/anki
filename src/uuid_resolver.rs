@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{change_router::ChangeType, types::note::Note, uuid_generator::UuidGenerator};
 
+#[derive(Clone, Debug)]
 pub(crate) struct IdentifiedNote<'a> {
 	pub id:   Uuid,
 	pub note: &'a Note<'a>,
@@ -26,9 +27,12 @@ impl<'a> IdentifiedNote<'a> {
 /// the state of the list over time, and returning its stable representation.
 pub(crate) fn resolve_uuids<'a>(
 	transformations: &'a [ChangeType],
-	original: Vec<Note<'a>>,
+	original: Vec<IdentifiedNote<'a>>,
 ) -> Vec<IdentifiedNote<'a>> {
-	let mut result: Vec<IdentifiedNote> = Vec::with_capacity(original.len());
+	// Just for clarity here, we're renaming it immediately to result, as result is
+	// what we're acting upon. It's "correct" to clone here, but I'm not going to
+	// use original again, so I'm fine moving for now.
+	let mut result: Vec<IdentifiedNote> = original;
 
 	for transformation in transformations {
 		match transformation {

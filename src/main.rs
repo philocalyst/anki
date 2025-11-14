@@ -2,7 +2,7 @@ use std::{error::Error, fs};
 
 use tracing::{error, info, instrument, warn};
 
-use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}};
+use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}, uuid_resolver::IdentifiedNote};
 
 mod change_router;
 mod deck_locator;
@@ -69,6 +69,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 			// Generate UUIDs
 			let uuids = deck.generate_note_uuids("index.flash")?; // TODO: Make this run per the card file
 			info!("Generated UUIDs:");
+
+			// Generate Identified Notes
+			let identified_notes: Vec<IdentifiedNote> = cards
+				.iter()
+				.zip(uuids.clone())
+				.map(|(note, uuid)| IdentifiedNote::new(note, uuid))
+				.collect();
 
 			for uuid in uuids {
 				info!("{}", uuid);
