@@ -3,19 +3,19 @@ use std::error::Error;
 use crate::types::note::Note;
 
 #[derive(Debug)]
-pub(crate) enum ChangeType {
-	Addition(usize),
+pub(crate) enum ChangeType<'a> {
+	Addition((usize, &'a Note<'a>)),
 	Deletion(usize),
-	Modification(usize),
+	Modification((usize, &'a Note<'a>)),
 	Reordering(usize),
 }
 
 /// Determines the kind of change occured between two decks. A None value is
 /// return when no change has occured.
-pub(crate) fn determine_change(
-	deck_1: &Vec<Note>,
-	deck_2: &Vec<Note>,
-) -> Result<Option<ChangeType>, Box<dyn Error>> {
+pub(crate) fn determine_change<'a>(
+	deck_1: &'a Vec<Note<'a>>,
+	deck_2: &'a Vec<Note<'a>>,
+) -> Result<Option<ChangeType<'a>>, Box<dyn Error>> {
 	if deck_1 == deck_2 {
 		return Ok(None);
 	}
@@ -26,7 +26,7 @@ pub(crate) fn determine_change(
 				// We're checking if this card is now out of order or no longer exists
 				if deck_2.iter().find(|n| *n == card1).is_some() {
 					// It does exist, this means that there was an addition
-					return Ok(Some(ChangeType::Addition(index)));
+					return Ok(Some(ChangeType::Addition((index, &card2))));
 				} else {
 					// This is the case where it no longer exists
 					return Ok(Some(ChangeType::Deletion(index)));
@@ -36,7 +36,7 @@ pub(crate) fn determine_change(
 
 		// Handle trailing additions/deletions
 		if deck_1.len() < deck_2.len() {
-			return Ok(Some(ChangeType::Addition(deck_1.len())));
+			return Ok(Some(ChangeType::Addition((deck_1.len(), &deck_2.last().unwrap()))));
 		} else {
 			return Ok(Some(ChangeType::Deletion(deck_2.len())));
 		}
@@ -60,7 +60,7 @@ pub(crate) fn determine_change(
 			// It's a modification - find first difference among the cards
 			for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 				if card1 != card2 {
-					return Ok(Some(ChangeType::Modification(index)));
+					return Ok(Some(ChangeType::Modification((index, card2))));
 				}
 			}
 		}
