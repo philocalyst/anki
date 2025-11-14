@@ -7,20 +7,20 @@ use uuid::Uuid;
 
 use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator::UuidGenerator};
 
-pub(crate) struct Deck {
+pub struct Deck {
 	models:      Vec<NoteModel>,
 	backing_vcs: Repository,
 }
 
 impl Deck {
 	#[instrument(skip(backing_vcs))]
-	pub(crate) fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
+	pub fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
 		info!("Creating deck with {} models", models.len());
 		Self { models, backing_vcs }
 	}
 
 	#[instrument(skip(self))]
-	pub(crate) fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
+	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
 		debug!("Looking for model: {}", name);
 		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
 			warn!("Model '{}' not found", name);
@@ -29,7 +29,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub(crate) fn parse_cards<'a>(
+	pub fn parse_cards<'a>(
 		&'a self,
 		content: &'a str,
 	) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
@@ -39,7 +39,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub(crate) fn find_initial_file_creation(
+	pub fn find_initial_file_creation(
 		&self,
 		target: &str,
 	) -> Result<(Entry<'_>, Commit<'_>), Box<dyn Error>> {
@@ -91,7 +91,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self, parent_tree, current_tree))]
-	pub(crate) fn track_file_changes(
+	pub fn track_file_changes(
 		&self,
 		parent_tree: &Tree,
 		current_tree: &Tree,
@@ -108,7 +108,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub(crate) fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
+	pub fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
 		if !entry.mode().is_blob() {
 			return Err(DeckError::InvalidEntry.into());
 		}
@@ -119,7 +119,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub(crate) fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
+	pub fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
 		info!("Generating UUIDs for notes in {}", target_file);
 
 		// Generating against the initial point of creation for the file, taking into

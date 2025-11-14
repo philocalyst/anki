@@ -4,11 +4,11 @@ use tracing::{debug, info, instrument};
 
 use crate::types::note::NoteModel;
 
-pub(crate) struct ModelLoader;
+pub struct ModelLoader;
 
 impl ModelLoader {
 	#[instrument]
-	pub(crate) fn load_models(
+	pub fn load_models(
 		model_paths: &[PathBuf],
 		deck_path: &Path,
 	) -> Result<Vec<NoteModel>, Box<dyn Error>> {

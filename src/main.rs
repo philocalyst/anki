@@ -1,27 +1,7 @@
 use std::{error::Error, fs};
 
+use flash::{self, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::deck::Deck, uuid_resolver::IdentifiedNote};
 use tracing::{error, info, instrument, warn};
-
-use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
-
-mod change_router;
-mod deck_locator;
-mod error;
-mod model_loader;
-mod parse;
-mod types;
-mod uuid_generator;
-mod uuid_resolver;
-
-#[instrument(skip(note))]
-fn print_note_debug(note: &Note) {
-	for field in &note.fields {
-		info!("{} : {:?}", field.name, field.content);
-	}
-	if !note.tags.is_empty() {
-		info!("Tags: {:?}", note.tags);
-	}
-}
 
 #[instrument]
 fn main() -> Result<(), Box<dyn Error>> {

@@ -2,13 +2,13 @@ use gix::bstr::ByteSlice;
 use tracing::{debug, instrument, warn};
 use uuid::Uuid;
 
-pub(crate) struct UuidGenerator;
+pub struct UuidGenerator;
 
 impl UuidGenerator {
 	/// Creates the main UUID based on the author of the initial commit and the
 	/// time
 	#[instrument]
-	pub(crate) fn create_host_uuid(author: String, time: i64) -> Uuid {
+	pub fn create_host_uuid(author: String, time: i64) -> Uuid {
 		debug!("Creating host UUID for author: {}, time: {}", author, time);
 
 		// Note: This is fragile and will break under rebase conditions
@@ -19,7 +19,7 @@ impl UuidGenerator {
 
 	/// Generate a UUID for a specific note based on its content
 	#[instrument(skip(content))]
-	pub(crate) fn generate_note_uuid(host_uuid: &Uuid, content: &str) -> Uuid {
+	pub fn generate_note_uuid(host_uuid: &Uuid, content: &str) -> Uuid {
 		Uuid::new_v5(host_uuid, content.as_bytes())
 	}
 }

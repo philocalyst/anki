@@ -5,11 +5,11 @@ use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::DeckError;
 
-pub(crate) struct DeckLocator;
+pub struct DeckLocator;
 
 impl DeckLocator {
 	#[instrument]
-	pub(crate) fn find_deck_directory() -> Result<PathBuf, Box<dyn Error>> {
+	pub fn find_deck_directory() -> Result<PathBuf, Box<dyn Error>> {
 		info!("Searching for deck directory");
 
 		let dirs: Vec<PathBuf> = fs::read_dir(".")?
@@ -24,12 +24,12 @@ impl DeckLocator {
 		})
 	}
 
-	pub(crate) fn is_deck_dir(path: &Path) -> bool {
+	pub fn is_deck_dir(path: &Path) -> bool {
 		path.is_dir() && path.extension().and_then(|e| e.to_str()) == Some("deck")
 	}
 
 	#[instrument]
-	pub(crate) fn scan_deck_contents(
+	pub fn scan_deck_contents(
 		deck_path: &Path,
 	) -> Result<(Vec<PathBuf>, Vec<PathBuf>), Box<dyn Error>> {
 		info!("Scanning deck contents at {:?}", deck_path);

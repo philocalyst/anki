@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{change_router::ChangeType, types::note::Note, uuid_generator::UuidGenerator};
 
 #[derive(Clone, Debug)]
-pub(crate) struct IdentifiedNote<'a> {
+pub struct IdentifiedNote<'a> {
 	pub id:   Uuid,
 	pub note: &'a Note<'a>,
 }
@@ -25,7 +25,7 @@ impl<'a> IdentifiedNote<'a> {
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
-pub(crate) fn resolve_uuids<'a>(
+pub fn resolve_uuids<'a>(
 	transformations: &'a [ChangeType],
 	original: Vec<IdentifiedNote<'a>>,
 ) -> Vec<IdentifiedNote<'a>> {

@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::types::note::Note;
 
 #[derive(Debug)]
-pub(crate) enum ChangeType<'a> {
+pub enum ChangeType<'a> {
 	Addition((usize, &'a Note<'a>)),
 	Deletion(usize),
 	Modification((usize, &'a Note<'a>)),
@@ -12,7 +12,7 @@ pub(crate) enum ChangeType<'a> {
 
 /// Determines the kind of change occured between two decks. A None value is
 /// return when no change has occured.
-pub(crate) fn determine_change<'a>(
+pub fn determine_change<'a>(
 	deck_1: &'a Vec<Note<'a>>,
 	deck_2: &'a Vec<Note<'a>>,
 ) -> Result<Option<ChangeType<'a>>, Box<dyn Error>> {

@@ -161,7 +161,7 @@ impl<'a> crate::types::note::Note<'a> {
 	/// Generate a deterministic string representation of the note's content
 	/// for UUID generation
 	#[instrument(skip(self))]
-	pub(crate) fn to_content_string(&self) -> String {
+	pub fn to_content_string(&self) -> String {
 		let mut content = String::new();
 
 		for field in &self.fields {
