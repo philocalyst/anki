@@ -7,6 +7,7 @@
 //! user doesn't attempt more than one change operation at a time (Following
 //! typical Git commit standards)
 
+use chumsky::input::Input;
 use uuid::Uuid;
 
 use crate::{change_router::ChangeType, types::note::Note};
@@ -23,4 +24,16 @@ pub(crate) fn resolve_uuids<'a>(
 	transformations: &'a [ChangeType],
 	original: Vec<Note<'a>>,
 ) -> Vec<IdentifiedNote<'a>> {
+	let mut result: Vec<IdentifiedNote> = Vec::with_capacity(original.len());
+
+	for transformation in transformations {
+		match transformation {
+			ChangeType::Addition(_) => todo!(),
+			ChangeType::Deletion(_) => todo!(),
+			ChangeType::Modification(_) => todo!(),
+			ChangeType::Reordering(_) => todo!(),
+		}
+	}
+
+	result
 }
