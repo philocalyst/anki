@@ -5,7 +5,7 @@ use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::En
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::parser, types::note::{Note, NoteModel}, uuid_generator::UuidGenerator};
+use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator::UuidGenerator};
 
 pub(crate) struct Deck {
 	models:      Vec<NoteModel>,
@@ -34,7 +34,7 @@ impl Deck {
 		content: &'a str,
 	) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
 		debug!("Parsing card content");
-		let parser = parser(&self.models);
+		let parser = flash(&self.models);
 		Ok(parser.parse(content).unwrap())
 	}
 
@@ -55,7 +55,8 @@ impl Deck {
 
 			let parent_ids: Vec<_> = commit.parent_ids().collect();
 
-			// Initial commit
+			// If there are no parent ids, and we find the target, then this is the
+			// commit.
 			if parent_ids.is_empty() {
 				if let Some(entry) = tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob()) {
 					info!("File created in initial commit {}", commit.id());

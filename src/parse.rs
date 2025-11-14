@@ -55,7 +55,10 @@ impl<'m> NoteBuilder<'m> {
 
 	fn add_alias(&mut self, from: String, to: String) {
 		if self.current_model.is_some() {
-			self.aliases.insert(from, to);
+			// Inserting with the key of to, as during resolution time, what's being
+			// searched is the to case (an alias within the flash file), in an attempt to
+			// find what it's linked to
+			self.aliases.insert(to, from);
 		}
 	}
 
@@ -174,7 +177,7 @@ fn process_item<'m>(
 }
 
 /// Main parser entry point
-pub fn parser<'a>(
+pub fn flash<'a>(
 	available_models: &'a [NoteModel],
 ) -> impl Parser<'a, &'a str, Vec<Note<'a>>, extra::Err<Rich<'a, char>>> + Clone {
 	// Inline whitespace (spaces and tabs only; excludes newlines)

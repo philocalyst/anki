@@ -2,7 +2,7 @@ use std::{error::Error, fs};
 
 use tracing::{error, info, instrument, warn};
 
-use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}, uuid_resolver::IdentifiedNote};
+use crate::{deck_locator::DeckLocator, model_loader::ModelLoader, types::{deck::Deck, note::{Note, TextElement}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
 
 mod change_router;
 mod deck_locator;
