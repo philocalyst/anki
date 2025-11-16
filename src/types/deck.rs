@@ -39,11 +39,10 @@ impl Deck {
 	pub fn get_file_history(
 		&self,
 		target: &str,
-	) -> Result<Vec<(Entry<'_>, Commit<'_>)>, Box<dyn Error>> {
-		info!("Finding initial creation of file: {}", target);
+	) -> Result<Vec<(gix::object::tree::Entry<'_>, gix::Commit<'_>)>, Box<dyn Error>> {
+		info!("Finding history of file: {}", target);
 
-		let mut places_been = Vec::new();
-
+		let mut history = Vec::new();
 		let mut head = self.backing_vcs.head()?;
 		let revwalk = self.backing_vcs.rev_walk([head.peel_to_object()?.id()]);
 
@@ -52,54 +51,63 @@ impl Deck {
 			let commit = self.backing_vcs.find_commit(commit_id.id())?;
 			let tree = commit.tree()?;
 
+			// Check if file exists in this commit
+			let current_entry = tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
+
+			if current_entry.is_none() {
+				continue; // File doesn't exist in this commit
+			}
+
+			let current_entry = current_entry.unwrap();
 			let parent_ids: Vec<_> = commit.parent_ids().collect();
 
-			// If there are no parent ids, and we find the target, then this is the
-			// commit.
 			if parent_ids.is_empty() {
-				if let Some(entry) = tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob()) {
-					info!("File created in initial commit {}", commit.id());
-					return Ok(vec![(entry, commit)]);
-				}
+				// Initial commit with the file
+				info!("File created in initial commit {}", commit.id());
+				history.push((current_entry, commit));
 				continue;
 			}
 
-			// Check each parent
+			// Check if file was added or modified compared to ANY parent
+			let mut file_changed = false;
+
 			for parent_id in parent_ids {
 				let parent_commit = self.backing_vcs.find_commit(parent_id)?;
 				let parent_tree = parent_commit.tree()?;
+				let parent_entry = parent_tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
 
-				let in_parent = parent_tree.lookup_entry_by_path(target)?.is_some();
-				let in_current = tree.lookup_entry_by_path(target)?.is_some();
-
-				// Add it to our list if it was included
-				if in_parent {
-					if let Some(entry) = tree.lookup_entry_by_path(target)? {
-						places_been.push((entry, commit.clone()));
+				match parent_entry {
+					None => {
+						// File didn't exist in this parent - it was added
+						file_changed = true;
+						info!("File added in commit {} (from parent {})", commit.id(), parent_id);
+						break;
+					}
+					Some(entry) => {
+						// File exists in parent - check if it changed
+						if entry.oid() != current_entry.oid() {
+							file_changed = true;
+							break;
+						}
 					}
 				}
+			}
 
-				if in_current && !in_parent {
-					// This is the root!! We can return now
-					info!("File first created in commit {}", commit.id());
-					if let Some(entry) = tree.lookup_entry_by_path(target)? {
-						// No clone here because it's the last iteration
-						places_been.push((entry, commit));
-
-						// We need to reverse the vector at this point so it's the first
-						places_been.reverse();
-						return Ok(places_been);
-					}
-				}
-
-				if in_current && in_parent {
-					self.track_file_changes(&parent_tree, &tree, target)?;
-				}
+			if file_changed {
+				history.push((current_entry, commit));
 			}
 		}
 
-		error!("File not found in repository history");
-		Err(DeckError::FileNotInHistory(target.to_string()).into())
+		// Reverse to get chronological order (oldest first)
+		history.reverse();
+
+		if history.is_empty() {
+			error!("File not found in repository history");
+			Err(DeckError::FileNotInHistory(target.to_string()).into())
+		} else {
+			info!("Found {} commits in file history", history.len());
+			Ok(history)
+		}
 	}
 
 	#[instrument(skip(self, parent_tree, current_tree))]
