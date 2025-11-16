@@ -13,13 +13,13 @@ use uuid::Uuid;
 use crate::{change_router::ChangeType, types::note::{Note, ONote}, uuid_generator::UuidGenerator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct IdentifiedNote<'a> {
+pub struct IdentifiedNote {
 	pub id:   Uuid,
-	pub note: &'a ONote,
+	pub note: ONote,
 }
 
-impl<'a> IdentifiedNote<'a> {
-	pub fn new(note: &'a ONote, id: Uuid) -> Self { IdentifiedNote { id, note } }
+impl<'a> IdentifiedNote {
+	pub fn new(note: ONote, id: Uuid) -> Self { IdentifiedNote { id, note } }
 }
 
 /// This function takes a set of transformations, in order from earliest to
@@ -27,9 +27,9 @@ impl<'a> IdentifiedNote<'a> {
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_uuids<'a>(
 	transformations: &'a [ChangeType],
-	original: Vec<IdentifiedNote<'a>>,
+	original: Vec<IdentifiedNote>,
 	host_uuid: Uuid,
-) -> Vec<IdentifiedNote<'a>> {
+) -> Vec<IdentifiedNote> {
 	// Just for clarity here, we're renaming it immediately to result, as result is
 	// what we're acting upon. It's "correct" to clone here, but I'm not going to
 	// use original again, so I'm fine moving for now.
@@ -41,7 +41,7 @@ pub fn resolve_uuids<'a>(
 				let base_uuid =
 					UuidGenerator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
-				result.insert(*idx, IdentifiedNote::new(&new_note, base_uuid));
+				result.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
 			}
 			ChangeType::Deletion(idx) => {
 				// Deletions are reversed during change vector creation, so think of this as
@@ -49,7 +49,7 @@ pub fn resolve_uuids<'a>(
 				result.remove(*idx);
 			}
 			ChangeType::Modification((idx, modified_note)) => {
-				result[*idx] = IdentifiedNote::new(modified_note, result[*idx].id)
+				result[*idx] = IdentifiedNote::new(modified_note.to_owned().to_owned(), result[*idx].id)
 			}
 			ChangeType::Reordering(_) => todo!(),
 		}

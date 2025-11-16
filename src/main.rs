@@ -1,7 +1,8 @@
 use std::{error::Error, fs};
 
-use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_resolver::IdentifiedNote};
+use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_generator::UuidGenerator, uuid_resolver::{IdentifiedNote, resolve_uuids}};
 use tracing::{error, info, instrument, warn};
+use uuid::Uuid;
 
 #[instrument]
 fn main() -> Result<(), Box<dyn Error>> {
@@ -45,7 +46,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 			for card in &cards {
 				print_note_debug(card);
 			}
-
 			info!("Generating UUIDs for notes in {}", "index.flash");
 
 			// Generating against the initial point of creation for the file, taking into
@@ -54,9 +54,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 			let history = deck.get_file_history("index.flash")?;
 			let mut point = 0;
 			let mut last_cards = Vec::new();
+			let mut static_cards = Vec::new();
 
 			while point < history.len() {
-				let (active_entry, _) = history[point].clone();
+				let (active_entry, active_commit) = history[point].clone();
 				let content = deck.read_file_content(&active_entry)?;
 
 				// Parse and immediately extract owned data
@@ -67,15 +68,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 					.collect();
 
 				if point == 0 {
+					// Generate initial set of UUIDs
+					let uuids = deck.generate_note_uuids((active_entry, active_commit))?;
+					static_cards = active_cards
+						.iter()
+						.zip(uuids)
+						.map(|(card, id)| IdentifiedNote { id, note: card.clone() })
+						.collect();
 					last_cards = active_cards;
 					point += 1;
 					continue;
 				}
 
-				let changes = determine_changes(&last_cards, &active_cards);
+				let changes = determine_changes(&last_cards, &active_cards)?;
+				// Assuming resolve_uuids mutates static_cards in place or returns new value
+				// If it returns a new value:
+				static_cards = resolve_uuids(&changes, static_cards, Uuid::default());
+
 				last_cards = active_cards;
 				point += 1;
 			}
+
+			dbg!(static_cards);
 		}
 		Err(error) => {
 			error!("Parsing error: {}", error);

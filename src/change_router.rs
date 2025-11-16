@@ -1,12 +1,12 @@
 use std::error::Error;
 
-use crate::types::note::Note;
+use crate::types::note::{Note, ONote};
 
 #[derive(Debug)]
 pub enum ChangeType<'a> {
-	Addition((usize, &'a Note<'a>)),
+	Addition((usize, &'a ONote)),
 	Deletion(usize),
-	Modification((usize, &'a Note<'a>)),
+	Modification((usize, &'a ONote)),
 	Reordering(usize),
 }
 
@@ -18,8 +18,8 @@ pub enum ChangeType<'a> {
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'a>(
-	deck_1: &'a Vec<Note<'a>>,
-	deck_2: &'a Vec<Note<'a>>,
+	deck_1: &'a Vec<ONote>,
+	deck_2: &'a Vec<ONote>,
 ) -> Result<Vec<ChangeType<'a>>, Box<dyn Error>> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
