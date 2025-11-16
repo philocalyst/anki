@@ -9,7 +9,7 @@
 
 use uuid::Uuid;
 
-use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorder}, types::note::ONote, uuid_generator};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::note::ONote, uuid_generator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote {
@@ -53,8 +53,10 @@ pub fn resolve_changes<'a>(
 			}
 		}
 
-		Reorder(_) => {
-			todo!()
+		Reorders(mappings) => {
+			for (from, to) in mappings {
+				substrate.swap(*from, *to);
+			}
 		}
 	}
 }

@@ -7,7 +7,7 @@ pub enum Transforms<'a> {
 	Additions(Vec<(usize, &'a ONote)>),
 	Deletions(Vec<usize>),
 	Modifications(Vec<(usize, &'a ONote)>),
-	Reorder(Vec<(usize, usize)>),
+	Reorders(Vec<(usize, usize)>),
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
@@ -85,7 +85,7 @@ pub fn determine_changes<'a>(
 				reorderings.push((idx1, idx2));
 			}
 		}
-		return Ok(Some(Transforms::Reorder(reorderings)));
+		return Ok(Some(Transforms::Reorders(reorderings)));
 	} else {
 		// Different cards at same positions - these are modifications
 		// Find all positions where content changed
