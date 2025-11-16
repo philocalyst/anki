@@ -36,11 +36,13 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn find_initial_file_creation(
+	pub fn get_file_history(
 		&self,
 		target: &str,
-	) -> Result<(Entry<'_>, Commit<'_>), Box<dyn Error>> {
+	) -> Result<Vec<(Entry<'_>, Commit<'_>)>, Box<dyn Error>> {
 		info!("Finding initial creation of file: {}", target);
+
+		let mut places_been = Vec::new();
 
 		let mut head = self.backing_vcs.head()?;
 		let revwalk = self.backing_vcs.rev_walk([head.peel_to_object()?.id()]);
@@ -57,7 +59,7 @@ impl Deck {
 			if parent_ids.is_empty() {
 				if let Some(entry) = tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob()) {
 					info!("File created in initial commit {}", commit.id());
-					return Ok((entry, commit));
+					return Ok(vec![(entry, commit)]);
 				}
 				continue;
 			}
@@ -70,10 +72,23 @@ impl Deck {
 				let in_parent = parent_tree.lookup_entry_by_path(target)?.is_some();
 				let in_current = tree.lookup_entry_by_path(target)?.is_some();
 
+				// Add it to our list if it was included
+				if in_parent {
+					if let Some(entry) = tree.lookup_entry_by_path(target)? {
+						places_been.push((entry, commit.clone()));
+					}
+				}
+
 				if in_current && !in_parent {
+					// This is the root!! We can return now
 					info!("File first created in commit {}", commit.id());
 					if let Some(entry) = tree.lookup_entry_by_path(target)? {
-						return Ok((entry, commit));
+						// No clone here because it's the last iteration
+						places_been.push((entry, commit));
+
+						// We need to reverse the vector at this point so it's the first
+						places_been.reverse();
+						return Ok(places_been);
 					}
 				}
 
