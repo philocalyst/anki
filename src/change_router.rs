@@ -7,7 +7,7 @@ pub enum ChangeFaction<'a> {
 	Additions(Vec<(usize, &'a ONote)>),
 	Deletions(Vec<usize>),
 	Modifications(Vec<(usize, &'a ONote)>),
-	Reorderings(Vec<usize>),
+	Reorder(Vec<usize>),
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
@@ -86,7 +86,7 @@ pub fn determine_changes<'a>(
 				reorderings.push(index);
 			}
 		}
-		return Ok(Some(ChangeFaction::Reorderings(reorderings)));
+		return Ok(Some(ChangeFaction::Reorder(reorderings)));
 	} else {
 		// Different cards at same positions - these are modifications
 		// Find all positions where content changed

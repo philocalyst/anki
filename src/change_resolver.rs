@@ -9,7 +9,7 @@
 
 use uuid::Uuid;
 
-use crate::{change_router::ChangeType, types::note::ONote, uuid_generator};
+use crate::{change_router::ChangeFaction::{self, Additions, Deletions, Modifications, Reorder}, types::note::ONote, uuid_generator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote {
@@ -25,28 +25,36 @@ impl<'a> IdentifiedNote {
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
-	transformations: &'a [ChangeType],
+	transformations: &'a ChangeFaction,
 	substrate: &mut Vec<IdentifiedNote>,
 	host_uuid: Uuid,
 ) {
-	for transformation in transformations {
-		match transformation {
-			ChangeType::Addition((idx, new_note)) => {
+	match transformations {
+		Additions(additions) => {
+			for (idx, new_note) in additions {
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
 				substrate.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
 			}
-			ChangeType::Deletion(idx) => {
-				// Deletions are reversed during change vector creation, so think of this as
-				// operating backwards.
+		}
+
+		Deletions(deletions) => {
+			// Deletions are reversed during change vector creation
+			for idx in deletions {
 				substrate.remove(*idx);
 			}
-			ChangeType::Modification((idx, modified_note)) => {
-				substrate[*idx] =
-					IdentifiedNote::new(modified_note.to_owned().to_owned(), substrate[*idx].id)
+		}
+
+		Modifications(modifications) => {
+			for (idx, modified_note) in modifications {
+				let existing_id = substrate[*idx].id;
+				substrate[*idx] = IdentifiedNote::new(modified_note.to_owned().to_owned(), existing_id);
 			}
-			ChangeType::Reordering(_) => todo!(),
+		}
+
+		Reorder(_) => {
+			todo!()
 		}
 	}
 }

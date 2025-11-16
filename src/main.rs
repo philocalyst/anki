@@ -80,11 +80,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 					continue;
 				}
 
-				let changes = determine_changes(&last_cards, &active_cards)?;
+				let possible_changes = determine_changes(&last_cards, &active_cards)?;
 
-				// Assuming resolve_uuids mutates static_cards in place or returns new value
-				// If it returns a new value:
-				resolve_changes(&changes, &mut static_cards, Uuid::default());
+				if let Some(changes) = possible_changes {
+					// Assuming resolve_uuids mutates static_cards in place or returns new value
+					// If it returns a new value:
+					resolve_changes(&changes, &mut static_cards, Uuid::default());
+				}
 
 				last_cards = active_cards;
 				point += 1;
