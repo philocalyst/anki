@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{collections::HashSet, error::Error};
 
 use crate::types::note::ONote;
 
@@ -7,7 +7,7 @@ pub enum Transforms<'a> {
 	Additions(Vec<(usize, &'a ONote)>),
 	Deletions(Vec<usize>),
 	Modifications(Vec<(usize, &'a ONote)>),
-	Reorders(Vec<(usize, usize)>),
+	Reorders(HashSet<(usize, usize)>),
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
@@ -78,14 +78,13 @@ pub fn determine_changes<'a>(
 	if sorted_1 == sorted_2 {
 		// Same cards, different order - this is a reordering
 		// Find all positions where cards differ
-		let mut reorderings = Vec::new();
-		for (idx1, card1) in deck_1.iter().enumerate() {
-			if let Some(card2) = deck_2.get(idx1) {
-				if *card1 != *card2 {
-					if let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
-						// Track where each card moved from -> to
-						reorderings.push((idx1, idx2));
-					}
+		let mut reorderings = HashSet::new();
+		for ((idx1, card1), (_, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
+			if *card1 != *card2 {
+				if let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
+					// Track where each card moved from -> to
+					let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
+					reorderings.insert(swap);
 				}
 			}
 		}
