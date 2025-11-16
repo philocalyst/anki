@@ -81,6 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 				}
 
 				let changes = determine_changes(&last_cards, &active_cards)?;
+
 				// Assuming resolve_uuids mutates static_cards in place or returns new value
 				// If it returns a new value:
 				static_cards = resolve_uuids(&changes, static_cards, Uuid::default());

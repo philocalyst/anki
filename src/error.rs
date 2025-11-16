@@ -1,23 +1,16 @@
-use core::fmt;
-use std::error::Error;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum DeckError {
+	#[error("No .deck directory found")]
 	NoDeckFound,
+
+	#[error("Model '{0}' not found")]
 	ModelNotFound(String),
+
+	#[error("File '{0}' not found in history")]
 	FileNotInHistory(String),
+
+	#[error("Invalid tree entry")]
 	InvalidEntry,
 }
-
-impl fmt::Display for DeckError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::NoDeckFound => write!(f, "No .deck directory found"),
-			Self::ModelNotFound(name) => write!(f, "Model '{}' not found", name),
-			Self::FileNotInHistory(path) => write!(f, "File '{}' not found in history", path),
-			Self::InvalidEntry => write!(f, "Invalid tree entry"),
-		}
-	}
-}
-
-impl Error for DeckError {}
