@@ -79,10 +79,14 @@ pub fn determine_changes<'a>(
 		// Same cards, different order - this is a reordering
 		// Find all positions where cards differ
 		let mut reorderings = Vec::new();
-		for ((idx1, card1), (idx2, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
-			if card1 != card2 {
-				// Track where each card moved from -> to
-				reorderings.push((idx1, idx2));
+		for (idx1, card1) in deck_1.iter().enumerate() {
+			if let Some(card2) = deck_2.get(idx1) {
+				if *card1 != *card2 {
+					if let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
+						// Track where each card moved from -> to
+						reorderings.push((idx1, idx2));
+					}
+				}
 			}
 		}
 		return Ok(Some(Transforms::Reorders(reorderings)));
