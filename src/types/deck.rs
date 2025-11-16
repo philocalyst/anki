@@ -5,7 +5,7 @@ use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::En
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator::UuidGenerator};
+use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator};
 
 pub struct Deck {
 	models:      Vec<NoteModel>,
@@ -142,7 +142,7 @@ impl Deck {
 	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, Box<dyn Error>> {
 		let (entry, commit) = target;
 		let host_uuid =
-			UuidGenerator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
+			uuid_generator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
 
 		let file_content = self.read_file_content(&entry)?;
 		let notes = self.parse_cards(&file_content)?;
@@ -151,7 +151,7 @@ impl Deck {
 			.iter()
 			.map(|note| {
 				let content = note.to_content_string();
-				UuidGenerator::generate_note_uuid(&host_uuid, &content)
+				uuid_generator::generate_note_uuid(&host_uuid, &content)
 			})
 			.collect();
 

@@ -10,7 +10,7 @@
 use chumsky::input::Input;
 use uuid::Uuid;
 
-use crate::{change_router::ChangeType, types::note::{Note, ONote}, uuid_generator::UuidGenerator};
+use crate::{change_router::ChangeType, types::note::{Note, ONote}, uuid_generator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote {
@@ -39,7 +39,7 @@ pub fn resolve_uuids<'a>(
 		match transformation {
 			ChangeType::Addition((idx, new_note)) => {
 				let base_uuid =
-					UuidGenerator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
+					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
 				result.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
 			}
