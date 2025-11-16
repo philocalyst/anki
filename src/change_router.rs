@@ -3,16 +3,12 @@ use std::error::Error;
 use crate::types::note::ONote;
 
 #[derive(Debug)]
-pub enum ChangeType<'a> {
-	Addition((usize, &'a ONote)),
-	Deletion(usize),
-	Modification((usize, &'a ONote)),
-	Reordering(usize),
+pub enum ChangeFaction<'a> {
+	Additions(Vec<(usize, &'a ONote)>),
+	Deletions(Vec<usize>),
+	Modifications(Vec<(usize, &'a ONote)>),
+	Reorderings(Vec<usize>),
 }
-
-// TODO: Rethink the return type here... the enum doesn't make a lot of sense
-// when I'm qualifying it needs to return just one type, and how reordering
-// would just be one entry... It fails to encode variance.
 
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
@@ -20,10 +16,10 @@ pub enum ChangeType<'a> {
 pub fn determine_changes<'a>(
 	deck_1: &'a Vec<ONote>,
 	deck_2: &'a Vec<ONote>,
-) -> Result<Vec<ChangeType<'a>>, Box<dyn Error>> {
+) -> Result<Option<ChangeFaction<'a>>, Box<dyn Error>> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
-		return Ok(vec![]);
+		return Ok(None);
 	}
 
 	// Case 1: Different lengths - either all additions or all deletions
@@ -42,11 +38,11 @@ pub fn determine_changes<'a>(
 					deck_2_idx += 1;
 				} else {
 					// Card at deck_2_idx is new - record the addition
-					additions.push(ChangeType::Addition((deck_2_idx, &deck_2[deck_2_idx])));
+					additions.push((deck_2_idx, &deck_2[deck_2_idx]));
 					deck_2_idx += 1;
 				}
 			}
-			return Ok(additions);
+			return Ok(Some(ChangeFaction::Additions(additions)));
 		} else {
 			// Deck shrank - find all deletions by walking both decks
 			let mut deletions = Vec::new();
@@ -60,7 +56,7 @@ pub fn determine_changes<'a>(
 					deck_2_idx += 1;
 				} else {
 					// Card at deck_1_idx was deleted - record the deletion
-					deletions.push(ChangeType::Deletion(deck_1_idx));
+					deletions.push(deck_1_idx);
 					deck_1_idx += 1;
 				}
 			}
@@ -68,7 +64,7 @@ pub fn determine_changes<'a>(
 			// index consistency. When you delete at index 0, everything shifts down,
 			// so we need to delete from the end first.
 			deletions.reverse();
-			return Ok(deletions);
+			return Ok(Some(ChangeFaction::Deletions(deletions)));
 		}
 	}
 
@@ -87,19 +83,19 @@ pub fn determine_changes<'a>(
 			if card1 != card2 {
 				// TODO: This index alone isn't enough info for reordering.
 				// We need to track where each card moved from/to.
-				reorderings.push(ChangeType::Reordering(index));
+				reorderings.push(index);
 			}
 		}
-		return Ok(reorderings);
+		return Ok(Some(ChangeFaction::Reorderings(reorderings)));
 	} else {
 		// Different cards at same positions - these are modifications
 		// Find all positions where content changed
 		let mut modifications = Vec::new();
 		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 			if card1 != card2 {
-				modifications.push(ChangeType::Modification((index, card2)));
+				modifications.push((index, card2));
 			}
 		}
-		return Ok(modifications);
+		return Ok(Some(ChangeFaction::Modifications(modifications)));
 	}
 }
