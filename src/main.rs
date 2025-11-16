@@ -1,6 +1,6 @@
 use std::{error::Error, fs};
 
-use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader, print_note_debug, types::{deck::Deck, note::ONote}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
+use flash::{self, change_resolver::{IdentifiedNote, resolve_changes}, change_router::determine_changes, deck_locator::DeckLocator, model_loader, print_note_debug, types::{deck::Deck, note::ONote}};
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -84,13 +84,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 				// Assuming resolve_uuids mutates static_cards in place or returns new value
 				// If it returns a new value:
-				static_cards = resolve_uuids(&changes, static_cards, Uuid::default());
+				static_cards = resolve_changes(&changes, static_cards, Uuid::default());
 
 				last_cards = active_cards;
 				point += 1;
 			}
-
-			dbg!(static_cards);
 		}
 		Err(error) => {
 			error!("Parsing error: {}", error);
