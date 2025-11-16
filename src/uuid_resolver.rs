@@ -44,10 +44,12 @@ pub fn resolve_uuids<'a>(
 				result.insert(*idx, IdentifiedNote::new(&new_note, base_uuid));
 			}
 			ChangeType::Deletion(idx) => {
+				// Deletions are reversed during change vector creation, so think of this as
+				// operating backwards.
 				result.remove(*idx);
 			}
 			ChangeType::Modification((idx, modified_note)) => {
-				result[*idx] = IdentifiedNote::new(modified_note, Uuid::default())
+				result[*idx] = IdentifiedNote::new(modified_note, result[*idx].id)
 			}
 			ChangeType::Reordering(_) => todo!(),
 		}

@@ -10,8 +10,13 @@ pub enum ChangeType<'a> {
 	Reordering(usize),
 }
 
-/// Determines the kind of change occured between two decks. A None value is
-/// return when no change has occured.
+// TODO: Rethink the return type here... the enum doesn't make a lot of sense
+// when I'm qualifying it needs to return just one type, and how reordering
+// would just be one entry... It fails to encode variance.
+
+/// Determines the kinds of changes that have occured between two decks. The
+/// returned vector is compromised of just one ChangeType. Errors are returned
+/// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'a>(
 	deck_1: &'a Vec<Note<'a>>,
 	deck_2: &'a Vec<Note<'a>>,
