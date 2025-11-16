@@ -12,6 +12,12 @@ pub struct Note<'a> {
 	pub tags:   Vec<String>,
 }
 
+#[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
+pub struct ONote {
+	pub fields: Vec<NoteField>,
+	pub tags:   Vec<String>,
+}
+
 #[derive(Debug, PartialOrd, Ord, Default, Eq, Clone, PartialEq)]
 pub struct NoteField {
 	pub name:    String,

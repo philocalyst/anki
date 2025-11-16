@@ -155,6 +155,7 @@ fn process_item<'m>(
 		}
 
 		FlashItem::Alias { from, to } => {
+			dbg!(&from, &to);
 			builder.add_alias(from, to);
 		}
 
@@ -204,7 +205,7 @@ pub fn flash<'a>(
 		.then_ignore(text::keyword("to"))
 		.then_ignore(ws.clone())
 		.then(identifier)
-		.map(|(from, to)| FlashItem::Alias { from, to })
+		.map(|(to, from)| FlashItem::Alias { from, to })
 		.then_ignore(line_ending.clone());
 
 	// Cloze parsing

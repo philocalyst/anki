@@ -10,16 +10,16 @@
 use chumsky::input::Input;
 use uuid::Uuid;
 
-use crate::{change_router::ChangeType, types::note::Note, uuid_generator::UuidGenerator};
+use crate::{change_router::ChangeType, types::note::{Note, ONote}, uuid_generator::UuidGenerator};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote<'a> {
 	pub id:   Uuid,
-	pub note: &'a Note<'a>,
+	pub note: &'a ONote,
 }
 
 impl<'a> IdentifiedNote<'a> {
-	pub fn new(note: &'a Note, id: Uuid) -> Self { IdentifiedNote { id, note } }
+	pub fn new(note: &'a ONote, id: Uuid) -> Self { IdentifiedNote { id, note } }
 }
 
 /// This function takes a set of transformations, in order from earliest to

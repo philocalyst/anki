@@ -1,6 +1,6 @@
 use std::{error::Error, fs};
 
-use flash::{self, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::deck::Deck, uuid_resolver::IdentifiedNote};
+use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_resolver::IdentifiedNote};
 use tracing::{error, info, instrument, warn};
 
 #[instrument]
@@ -51,22 +51,30 @@ fn main() -> Result<(), Box<dyn Error>> {
 			// Generating against the initial point of creation for the file, taking into
 			// account renames. This should keep things stable as long as the git repo is
 			// the token of trade
-			let (entry, commit) = deck.find_initial_file_creation("index.flash")?;
+			let history = deck.get_file_history("index.flash")?;
+			let mut point = 0;
+			let mut last_cards = Vec::new();
 
-			// Generate UUIDs
-			let uuids = deck.generate_note_uuids((entry, commit))?; // TODO: Make this run per the card file
+			while point < history.len() {
+				let (active_entry, _) = history[point].clone();
+				let content = deck.read_file_content(&active_entry)?;
 
-			info!("Generated UUIDs:");
+				// Parse and immediately extract owned data
+				let active_cards: Vec<ONote> = deck
+					.parse_cards(content.as_ref())?
+					.into_iter()
+					.map(|note| ONote { fields: note.fields.clone(), tags: note.tags.clone() })
+					.collect();
 
-			// Generate Identified Notes
-			let identified_notes: Vec<IdentifiedNote> = cards
-				.iter()
-				.zip(uuids.clone())
-				.map(|(note, uuid)| IdentifiedNote::new(note, uuid))
-				.collect();
+				if point == 0 {
+					last_cards = active_cards;
+					point += 1;
+					continue;
+				}
 
-			for uuid in uuids {
-				info!("{}", uuid);
+				let changes = determine_changes(&last_cards, &active_cards);
+				last_cards = active_cards;
+				point += 1;
 			}
 		}
 		Err(error) => {

@@ -184,6 +184,33 @@ impl<'a> crate::types::note::Note<'a> {
 	}
 }
 
+impl<'a> crate::types::note::ONote {
+	/// Generate a deterministic string representation of the note's content
+	/// for UUID generation
+	#[instrument(skip(self))]
+	pub fn to_content_string(&self) -> String {
+		let mut content = String::new();
+
+		for field in &self.fields {
+			content.push_str(&field.name);
+
+			let field_content = field
+				.content
+				.iter()
+				.map(|part| match part {
+					TextElement::Text(text) => text.as_str(),
+					TextElement::Cloze(cloze) => cloze.answer.as_str(),
+				})
+				.collect::<Vec<&str>>()
+				.join("\0");
+
+			content.push_str(&field_content);
+		}
+
+		content
+	}
+}
+
 impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::NoteModel {
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {

@@ -32,7 +32,7 @@ impl Deck {
 	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
 		debug!("Parsing card content");
 		let parser = flash(&self.models);
-		Ok(parser.parse(content).unwrap())
+		Ok(parser.parse(&content).unwrap())
 	}
 
 	#[instrument(skip(self))]
