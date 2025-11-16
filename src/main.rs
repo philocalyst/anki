@@ -1,6 +1,6 @@
 use std::{error::Error, fs};
 
-use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader::ModelLoader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
+use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	}
 
 	// Load models
-	let models = ModelLoader::load_models(&model_paths, &deck_path)?;
+	let models = model_loader::load_models(&model_paths, &deck_path)?;
 
 	// Open repository
 	let repo_path = deck_path.join(".git");
