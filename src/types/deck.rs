@@ -29,10 +29,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn parse_cards<'a>(
-		&'a self,
-		content: &'a str,
-	) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
+	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
 		debug!("Parsing card content");
 		let parser = flash(&self.models);
 		Ok(parser.parse(content).unwrap())
@@ -119,13 +116,8 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn generate_note_uuids(&self, target_file: &str) -> Result<Vec<Uuid>, Box<dyn Error>> {
-		info!("Generating UUIDs for notes in {}", target_file);
-
-		// Generating against the initial point of creation for the file, taking into
-		// account renames. This should keep things stable as long as the git repo is
-		// the token of trade
-		let (entry, commit) = self.find_initial_file_creation(target_file)?;
+	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, Box<dyn Error>> {
+		let (entry, commit) = target;
 		let host_uuid =
 			UuidGenerator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
 

@@ -46,8 +46,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 				print_note_debug(card);
 			}
 
+			info!("Generating UUIDs for notes in {}", "index.flash");
+
+			// Generating against the initial point of creation for the file, taking into
+			// account renames. This should keep things stable as long as the git repo is
+			// the token of trade
+			let (entry, commit) = deck.find_initial_file_creation("index.flash")?;
+
 			// Generate UUIDs
-			let uuids = deck.generate_note_uuids("index.flash")?; // TODO: Make this run per the card file
+			let uuids = deck.generate_note_uuids((entry, commit))?; // TODO: Make this run per the card file
+
 			info!("Generated UUIDs:");
 
 			// Generate Identified Notes
