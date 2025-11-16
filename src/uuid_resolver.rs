@@ -28,6 +28,7 @@ impl<'a> IdentifiedNote<'a> {
 pub fn resolve_uuids<'a>(
 	transformations: &'a [ChangeType],
 	original: Vec<IdentifiedNote<'a>>,
+	host_uuid: Uuid,
 ) -> Vec<IdentifiedNote<'a>> {
 	// Just for clarity here, we're renaming it immediately to result, as result is
 	// what we're acting upon. It's "correct" to clone here, but I'm not going to
@@ -37,9 +38,8 @@ pub fn resolve_uuids<'a>(
 	for transformation in transformations {
 		match transformation {
 			ChangeType::Addition((idx, new_note)) => {
-				// TODO: Consume a host UUID
 				let base_uuid =
-					UuidGenerator::generate_note_uuid(&Uuid::default(), &new_note.to_content_string());
+					UuidGenerator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
 				result.insert(*idx, IdentifiedNote::new(&new_note, base_uuid));
 			}
