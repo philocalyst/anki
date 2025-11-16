@@ -7,10 +7,9 @@
 //! user doesn't attempt more than one change operation at a time (Following
 //! typical Git commit standards)
 
-use chumsky::input::Input;
 use uuid::Uuid;
 
-use crate::{change_router::ChangeType, types::note::{Note, ONote}, uuid_generator};
+use crate::{change_router::ChangeType, types::note::ONote, uuid_generator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote {

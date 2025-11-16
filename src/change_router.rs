@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::types::note::{Note, ONote};
+use crate::types::note::ONote;
 
 #[derive(Debug)]
 pub enum ChangeType<'a> {

@@ -1,8 +1,7 @@
-use std::{error::Error, fs};
 
-use tracing::{error, info, instrument, warn};
+use tracing::{info, instrument, warn};
 
-use crate::{deck_locator::DeckLocator, types::{deck::Deck, note::{Note, TextElement}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
+use crate::types::note::Note;
 
 pub mod change_router;
 pub mod deck_locator;

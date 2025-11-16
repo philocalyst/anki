@@ -1,6 +1,6 @@
 use std::{error::Error, fs};
 
-use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader, print_note_debug, types::{deck::Deck, note::{Note, NoteField, ONote}}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
+use flash::{self, change_router::determine_changes, deck_locator::DeckLocator, model_loader, print_note_debug, types::{deck::Deck, note::ONote}, uuid_resolver::{IdentifiedNote, resolve_uuids}};
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
