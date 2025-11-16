@@ -3,11 +3,11 @@ use std::error::Error;
 use crate::types::note::ONote;
 
 #[derive(Debug)]
-pub enum ChangeFaction<'a> {
+pub enum Transforms<'a> {
 	Additions(Vec<(usize, &'a ONote)>),
 	Deletions(Vec<usize>),
 	Modifications(Vec<(usize, &'a ONote)>),
-	Reorder(Vec<usize>),
+	Reorder(Vec<(usize, usize)>),
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
@@ -16,7 +16,7 @@ pub enum ChangeFaction<'a> {
 pub fn determine_changes<'a>(
 	deck_1: &'a Vec<ONote>,
 	deck_2: &'a Vec<ONote>,
-) -> Result<Option<ChangeFaction<'a>>, Box<dyn Error>> {
+) -> Result<Option<Transforms<'a>>, Box<dyn Error>> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
 		return Ok(None);
@@ -42,7 +42,7 @@ pub fn determine_changes<'a>(
 					deck_2_idx += 1;
 				}
 			}
-			return Ok(Some(ChangeFaction::Additions(additions)));
+			return Ok(Some(Transforms::Additions(additions)));
 		} else {
 			// Deck shrank - find all deletions by walking both decks
 			let mut deletions = Vec::new();
@@ -64,7 +64,7 @@ pub fn determine_changes<'a>(
 			// index consistency. When you delete at index 0, everything shifts down,
 			// so we need to delete from the end first.
 			deletions.reverse();
-			return Ok(Some(ChangeFaction::Deletions(deletions)));
+			return Ok(Some(Transforms::Deletions(deletions)));
 		}
 	}
 
@@ -79,14 +79,13 @@ pub fn determine_changes<'a>(
 		// Same cards, different order - this is a reordering
 		// Find all positions where cards differ
 		let mut reorderings = Vec::new();
-		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
+		for ((idx1, card1), (idx2, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
 			if card1 != card2 {
-				// TODO: This index alone isn't enough info for reordering.
-				// We need to track where each card moved from/to.
-				reorderings.push(index);
+				// Track where each card moved from -> to
+				reorderings.push((idx1, idx2));
 			}
 		}
-		return Ok(Some(ChangeFaction::Reorder(reorderings)));
+		return Ok(Some(Transforms::Reorder(reorderings)));
 	} else {
 		// Different cards at same positions - these are modifications
 		// Find all positions where content changed
@@ -96,6 +95,6 @@ pub fn determine_changes<'a>(
 				modifications.push((index, card2));
 			}
 		}
-		return Ok(Some(ChangeFaction::Modifications(modifications)));
+		return Ok(Some(Transforms::Modifications(modifications)));
 	}
 }

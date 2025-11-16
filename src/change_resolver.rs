@@ -9,7 +9,7 @@
 
 use uuid::Uuid;
 
-use crate::{change_router::ChangeFaction::{self, Additions, Deletions, Modifications, Reorder}, types::note::ONote, uuid_generator};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorder}, types::note::ONote, uuid_generator};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IdentifiedNote {
@@ -25,7 +25,7 @@ impl<'a> IdentifiedNote {
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
-	transformations: &'a ChangeFaction,
+	transformations: &'a Transforms,
 	substrate: &mut Vec<IdentifiedNote>,
 	host_uuid: Uuid,
 ) {
