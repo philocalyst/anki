@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 				// Assuming resolve_uuids mutates static_cards in place or returns new value
 				// If it returns a new value:
-				static_cards = resolve_changes(&changes, static_cards, Uuid::default());
+				resolve_changes(&changes, &mut static_cards, Uuid::default());
 
 				last_cards = active_cards;
 				point += 1;

@@ -26,33 +26,27 @@ impl<'a> IdentifiedNote {
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
 	transformations: &'a [ChangeType],
-	original: Vec<IdentifiedNote>,
+	substrate: &mut Vec<IdentifiedNote>,
 	host_uuid: Uuid,
-) -> Vec<IdentifiedNote> {
-	// Just for clarity here, we're renaming it immediately to result, as result is
-	// what we're acting upon. It's "correct" to clone here, but I'm not going to
-	// use original again, so I'm fine moving for now.
-	let mut result: Vec<IdentifiedNote> = original;
-
+) {
 	for transformation in transformations {
 		match transformation {
 			ChangeType::Addition((idx, new_note)) => {
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
-				result.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
+				substrate.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
 			}
 			ChangeType::Deletion(idx) => {
 				// Deletions are reversed during change vector creation, so think of this as
 				// operating backwards.
-				result.remove(*idx);
+				substrate.remove(*idx);
 			}
 			ChangeType::Modification((idx, modified_note)) => {
-				result[*idx] = IdentifiedNote::new(modified_note.to_owned().to_owned(), result[*idx].id)
+				substrate[*idx] =
+					IdentifiedNote::new(modified_note.to_owned().to_owned(), substrate[*idx].id)
 			}
 			ChangeType::Reordering(_) => todo!(),
 		}
 	}
-
-	result
 }
