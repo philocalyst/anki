@@ -58,26 +58,19 @@ pub enum DeckError {
 
 	#[error("Failed to parse deck: {0}")]
 	Parse(String),
-}
 
-impl<'a> From<gix::object::find::existing::Error> for DeckError {
-	fn from(err: gix::object::find::existing::Error) -> Self { DeckError::Git(err.to_string()) }
-}
+	#[error("Could not find existing git object: {0}")]
+	ObjectFind(#[from] gix::object::find::existing::Error),
 
-impl<'a> From<gix::traverse::commit::simple::Error> for DeckError {
-	fn from(err: gix::traverse::commit::simple::Error) -> Self { DeckError::Git(err.to_string()) }
-}
+	#[error("Failed to traverse git commit history: {0}")]
+	CommitTraverse(#[from] gix::traverse::commit::simple::Error),
 
-impl From<gix::head::peel::to_object::Error> for DeckError {
-	fn from(err: gix::head::peel::to_object::Error) -> Self { DeckError::Git(err.to_string()) }
-}
+	#[error("Failed to peel git head reference to an object: {0}")]
+	HeadPeelToObject(#[from] gix::head::peel::to_object::Error),
 
-impl From<gix::revision::walk::iter::Error> for DeckError {
-	fn from(err: gix::revision::walk::iter::Error) -> Self { DeckError::Git(err.to_string()) }
-}
+	#[error("Failed to walk git revisions: {0}")]
+	RevisionWalk(#[from] gix::revision::walk::iter::Error),
 
-impl From<gix::object::find::existing::with_conversion::Error> for DeckError {
-	fn from(err: gix::object::find::existing::with_conversion::Error) -> Self {
-		DeckError::Git(err.to_string())
-	}
+	#[error("Failed to find existing git object with conversion: {0}")]
+	ObjectFindConvert(#[from] gix::object::find::existing::with_conversion::Error),
 }
