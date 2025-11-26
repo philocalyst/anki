@@ -27,8 +27,8 @@ impl<'m> NoteBuilder<'m> {
 		if let Some(model) = self.current_model {
 			self.notes.push(Note {
 				fields: std::mem::take(&mut self.fields),
-				tags: std::mem::take(&mut self.tags),
-				model,
+				tags:   std::mem::take(&mut self.tags),
+				model:  std::borrow::Cow::Borrowed(model),
 			});
 		} else {
 			// No active model: discard accumulated fields/tags

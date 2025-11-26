@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{borrow::Cow, path::PathBuf};
 
 use semver::Version;
 use serde::Deserialize;
@@ -16,19 +16,12 @@ pub struct Identified<T> {
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct Note<'a> {
 	pub fields: Vec<NoteField>,
-	pub model:  &'a NoteModel,
+	pub model:  Cow<'a, NoteModel>,
 	pub tags:   Vec<String>,
 }
 
 // All notes can be identified
 impl Identifiable for Note<'_> {}
-impl Identifiable for ONote {}
-
-#[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
-pub struct ONote {
-	pub fields: Vec<NoteField>,
-	pub tags:   Vec<String>,
-}
 
 #[derive(Debug, PartialOrd, Ord, Default, Eq, Clone, PartialEq)]
 pub struct NoteField {

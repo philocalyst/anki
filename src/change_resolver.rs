@@ -9,14 +9,14 @@
 
 use uuid::Uuid;
 
-use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::{note::{Identified, Note, ONote}, note_methods::Identifiable}, uuid_generator};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::{note::{Identified, Note}, note_methods::Identifiable}, uuid_generator};
 
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
-	transformations: &'a Transforms,
-	substrate: &mut Vec<Identified<ONote>>,
+	transformations: &'a Transforms<'a>,
+	substrate: &mut Vec<Identified<Note<'a>>>,
 	host_uuid: Uuid,
 ) {
 	match transformations {

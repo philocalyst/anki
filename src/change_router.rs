@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use crate::{error::DeckError, types::note::ONote};
+use crate::{error::DeckError, types::note::Note};
 
 #[derive(Debug)]
 pub enum Transforms<'a> {
-	Additions(Vec<(usize, &'a ONote)>),
+	Additions(Vec<(usize, &'a Note<'a>)>),
 	Deletions(Vec<usize>),
-	Modifications(Vec<(usize, &'a ONote)>),
+	Modifications(Vec<(usize, &'a Note<'a>)>),
 	Reorders(HashSet<(usize, usize)>),
 }
 
@@ -14,8 +14,8 @@ pub enum Transforms<'a> {
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'a>(
-	deck_1: &'a Vec<ONote>,
-	deck_2: &'a Vec<ONote>,
+	deck_1: &'a Vec<Note>,
+	deck_2: &'a Vec<Note>,
 ) -> Result<Option<Transforms<'a>>, DeckError> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {

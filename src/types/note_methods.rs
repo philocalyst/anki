@@ -99,10 +99,10 @@ impl<'a> From<Vec<crate::types::note::Note<'a>>> for CrowdAnkiEntity {
 		// Extract unique note models from the notes
 		let note_models: Vec<crate::types::crowd_anki_models::NoteModel> = notes
 			.iter()
-			.map(|note| note.model)
+			.map(|note| note.model.clone())
 			.collect::<std::collections::HashSet<_>>()
 			.into_iter()
-			.map(|model| model.into())
+			.map(|model| model.as_ref().into())
 			.collect();
 
 		// Convert notes to CrowdAnki format
@@ -166,33 +166,6 @@ impl<'a> From<Vec<crate::types::note::Note<'a>>> for CrowdAnkiEntity {
 }
 
 impl<'a> crate::types::note::Note<'a> {
-	/// Generate a deterministic string representation of the note's content
-	/// for UUID generation
-	#[instrument(skip(self))]
-	pub fn to_content_string(&self) -> String {
-		let mut content = String::new();
-
-		for field in &self.fields {
-			content.push_str(&field.name);
-
-			let field_content = field
-				.content
-				.iter()
-				.map(|part| match part {
-					TextElement::Text(text) => text.as_str(),
-					TextElement::Cloze(cloze) => cloze.answer.as_str(),
-				})
-				.collect::<Vec<&str>>()
-				.join("\0");
-
-			content.push_str(&field_content);
-		}
-
-		content
-	}
-}
-
-impl<'a> crate::types::note::ONote {
 	/// Generate a deterministic string representation of the note's content
 	/// for UUID generation
 	#[instrument(skip(self))]
