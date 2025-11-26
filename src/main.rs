@@ -1,7 +1,7 @@
 use std::fs;
 
 use eyre::{Context, Result};
-use flash::{self, change_resolver::{IdentifiedNote, resolve_changes}, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::ONote}};
+use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::ONote, note_methods::Identifiable}};
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
@@ -75,11 +75,8 @@ fn main() -> Result<()> {
 			let uuids = deck
 				.generate_note_uuids((active_entry, active_commit))
 				.wrap_err("Failed to generate UUIDs")?;
-			static_cards = active_cards
-				.iter()
-				.zip(uuids)
-				.map(|(card, id)| IdentifiedNote { id, note: card.clone() })
-				.collect();
+			static_cards =
+				active_cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect();
 			last_cards = active_cards;
 			point += 1;
 			continue;

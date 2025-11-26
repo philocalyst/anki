@@ -9,14 +9,14 @@
 
 use uuid::Uuid;
 
-use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::note::ONote, uuid_generator};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::{note::{Identified, Note, ONote}, note_methods::Identifiable}, uuid_generator};
 
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
 	transformations: &'a Transforms,
-	substrate: &mut Vec<IdentifiedNote>,
+	substrate: &mut Vec<Identified<ONote>>,
 	host_uuid: Uuid,
 ) {
 	match transformations {
@@ -25,7 +25,7 @@ pub fn resolve_changes<'a>(
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
 
-				substrate.insert(*idx, IdentifiedNote::new(new_note.to_owned().to_owned(), base_uuid));
+				substrate.insert(*idx, new_note.to_owned().to_owned().identified(base_uuid));
 			}
 		}
 
@@ -39,7 +39,7 @@ pub fn resolve_changes<'a>(
 		Modifications(modifications) => {
 			for (idx, modified_note) in modifications {
 				let existing_id = substrate[*idx].id;
-				substrate[*idx] = IdentifiedNote::new(modified_note.to_owned().to_owned(), existing_id);
+				substrate[*idx] = modified_note.to_owned().to_owned().identified(existing_id);
 			}
 		}
 
