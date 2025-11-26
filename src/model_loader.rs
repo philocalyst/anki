@@ -1,14 +1,14 @@
-use std::{error::Error, fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}};
 
 use tracing::{debug, info, instrument};
 
-use crate::types::note::NoteModel;
+use crate::{error::DeckError, types::note::NoteModel};
 
 #[instrument]
 pub fn load_models(
 	model_paths: &[PathBuf],
 	deck_path: &Path,
-) -> Result<Vec<NoteModel>, Box<dyn Error>> {
+) -> Result<Vec<NoteModel>, DeckError<'_>> {
 	info!("Loading {} models", model_paths.len());
 
 	let mut all_models = Vec::new();
@@ -17,7 +17,8 @@ pub fn load_models(
 		let config_path = model_path.join("config.toml");
 		debug!("Loading model config from {:?}", config_path);
 
-		let config_content = fs::read_to_string(&config_path)?;
+		let config_content = fs::read_to_string(&config_path)
+			.map_err(|_| DeckError::ModelConfigNotFound(config_path.clone()))?;
 		let mut model: NoteModel = toml::from_str(&config_content)?;
 
 		// TODO: This path should be more dynamic

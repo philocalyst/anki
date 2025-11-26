@@ -1,7 +1,6 @@
-use std::{error::Error, fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}};
 
-use chumsky::Parser;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument};
 
 use crate::error::DeckError;
 
@@ -9,7 +8,7 @@ pub struct DeckLocator;
 
 impl DeckLocator {
 	#[instrument]
-	pub fn find_deck_directory() -> Result<PathBuf, Box<dyn Error>> {
+	pub fn find_deck_directory() -> Result<PathBuf, DeckError<'_>> {
 		info!("Searching for deck directory");
 
 		let dirs: Vec<PathBuf> = fs::read_dir(".")?
@@ -20,7 +19,7 @@ impl DeckLocator {
 
 		dirs.into_iter().find(|dir| Self::is_deck_dir(dir)).ok_or_else(|| {
 			error!("No deck directory found");
-			DeckError::NoDeckFound.into()
+			DeckError::NoDeckFound
 		})
 	}
 
@@ -31,7 +30,7 @@ impl DeckLocator {
 	#[instrument]
 	pub fn scan_deck_contents(
 		deck_path: &Path,
-	) -> Result<(Vec<PathBuf>, Vec<PathBuf>), Box<dyn Error>> {
+	) -> Result<(Vec<PathBuf>, Vec<PathBuf>), DeckError<'_>> {
 		info!("Scanning deck contents at {:?}", deck_path);
 
 		let mut models = Vec::new();

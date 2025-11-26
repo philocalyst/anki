@@ -1,11 +1,18 @@
-use std::error::Error;
-
 use chumsky::Parser;
-use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
+use gix::{
+	bstr::{ByteSlice, ByteVec},
+	object::tree::Entry,
+	Commit, Repository, Tree,
+};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator};
+use crate::{
+	error::DeckError,
+	parse::{build_notes, flash},
+	types::note::{Note, NoteModel},
+	uuid_generator,
+};
 
 pub struct Deck {
 	models:      Vec<NoteModel>,
@@ -20,7 +27,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
+	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError<'_>> {
 		debug!("Looking for model: {}", name);
 		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
 			warn!("Model '{}' not found", name);
@@ -29,17 +36,17 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, Box<dyn Error>> {
+	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, DeckError<'a>> {
 		debug!("Parsing card content");
-		let parser = flash(&self.models);
-		Ok(parser.parse(&content).unwrap())
+		let items = flash().parse(content).map_err(|e| DeckError::Parse(e.into_iter().map(|e| e.map(|c| c.to_string())).collect()))?;
+		build_notes(items, &self.models)
 	}
 
 	#[instrument(skip(self))]
 	pub fn get_file_history(
 		&self,
 		target: &str,
-	) -> Result<Vec<(gix::object::tree::Entry<'_>, gix::Commit<'_>)>, Box<dyn Error>> {
+	) -> Result<Vec<(gix::object::tree::Entry<'_>, gix::Commit<'_>)>, DeckError<'_>> {
 		info!("Finding history of file: {}", target);
 
 		let mut history = Vec::new();
@@ -74,7 +81,7 @@ impl Deck {
 			for parent_id in parent_ids {
 				let parent_commit = self.backing_vcs.find_commit(parent_id)?;
 				let parent_tree = parent_commit.tree()?;
-				let parent_entry = parent_tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
+				let parent_.entry = parent_tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
 
 				match parent_entry {
 					None => {
@@ -103,7 +110,7 @@ impl Deck {
 
 		if history.is_empty() {
 			error!("File not found in repository history");
-			Err(DeckError::FileNotInHistory(target.to_string()).into())
+			Err(DeckError::FileNotInHistory(target.to_string()))
 		} else {
 			info!("Found {} commits in file history", history.len());
 			Ok(history)
@@ -116,7 +123,7 @@ impl Deck {
 		parent_tree: &Tree,
 		current_tree: &Tree,
 		path: &str,
-	) -> Result<(), Box<dyn Error>> {
+	) -> Result<(), DeckError<'_>> {
 		let parent_entry = parent_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
 		let current_entry = current_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
 
@@ -128,21 +135,24 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn read_file_content(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
+	pub fn read_file_content(&self, entry: &Entry) -> Result<String, DeckError<'_>> {
 		if !entry.mode().is_blob() {
-			return Err(DeckError::InvalidEntry.into());
+			return Err(DeckError::InvalidEntry);
 		}
 
 		let blob = self.backing_vcs.find_blob(entry.id())?;
-		let content = blob.data.clone().into_string()?;
+		let content = String::from_utf8(blob.data.clone()).map_err(|_| {
+			DeckError::InvalidUtf8(self.backing_vcs.work_dir().unwrap_or_default().to_path_buf())
+		})?;
 		Ok(content)
 	}
 
 	#[instrument(skip(self))]
-	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, Box<dyn Error>> {
+	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, DeckError<'_>> {
 		let (entry, commit) = target;
+		let author = commit.author()?;
 		let host_uuid =
-			uuid_generator::create_host_uuid(commit.author()?.name.to_string(), commit.time()?.seconds);
+			uuid_generator::create_host_uuid(author.name.to_string(), commit.time()?.seconds);
 
 		let file_content = self.read_file_content(&entry)?;
 		let notes = self.parse_cards(&file_content)?;

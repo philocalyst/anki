@@ -1,6 +1,6 @@
-use std::{collections::HashSet, error::Error};
+use std::collections::HashSet;
 
-use crate::types::note::ONote;
+use crate::{error::DeckError, types::note::ONote};
 
 #[derive(Debug)]
 pub enum Transforms<'a> {
@@ -16,7 +16,7 @@ pub enum Transforms<'a> {
 pub fn determine_changes<'a>(
 	deck_1: &'a Vec<ONote>,
 	deck_2: &'a Vec<ONote>,
-) -> Result<Option<Transforms<'a>>, Box<dyn Error>> {
+) -> Result<Option<Transforms<'a>>, DeckError<'a>> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
 		return Ok(None);
