@@ -29,10 +29,10 @@ impl Deck {
 	#[instrument(skip(self))]
 	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
 		debug!("Parsing card content");
-		let items = flash(&self.models)
-			.parse(content)
-			.into_result()
-			.map_err(|e| DeckError::Parse(e.into_iter().map(|e| e.into_owned()).collect()))?;
+		flash(&self.models).parse(content).into_result().map_err(|e| {
+			let error_string = e.into_iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n");
+			DeckError::Parse(error_string)
+		})
 	}
 
 	#[instrument(skip(self))]
@@ -128,7 +128,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn read_file_content(&self, entry: &Entry) -> Result<String, DeckError<'_>> {
+	pub fn read_file_content(&self, entry: &Entry) -> Result<String, DeckError> {
 		if !entry.mode().is_blob() {
 			return Err(DeckError::InvalidEntry);
 		}
@@ -142,7 +142,7 @@ impl Deck {
 	#[instrument(skip(self))]
 	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, DeckError> {
 		let (entry, commit) = target;
-		let author = commit.author()?;
+		let author = commit.author().unwrap_or_default(); // Just ignore if non-existent, although reasonably impossible I think haha
 		let host_uuid =
 			uuid_generator::create_host_uuid(author.name.to_string(), commit.time()?.seconds);
 

@@ -55,6 +55,9 @@ pub enum DeckError {
 
 	#[error("Failed to commit changes to git.")]
 	Commit(#[from] gix::object::commit::Error),
+
+	#[error("Failed to parse deck: {0}")]
+	Parse(String),
 }
 
 impl<'a> From<gix::object::find::existing::Error> for DeckError {
@@ -63,4 +66,18 @@ impl<'a> From<gix::object::find::existing::Error> for DeckError {
 
 impl<'a> From<gix::traverse::commit::simple::Error> for DeckError {
 	fn from(err: gix::traverse::commit::simple::Error) -> Self { DeckError::Git(err.to_string()) }
+}
+
+impl From<gix::head::peel::to_object::Error> for DeckError {
+	fn from(err: gix::head::peel::to_object::Error) -> Self { DeckError::Git(err.to_string()) }
+}
+
+impl From<gix::revision::walk::iter::Error> for DeckError {
+	fn from(err: gix::revision::walk::iter::Error) -> Self { DeckError::Git(err.to_string()) }
+}
+
+impl From<gix::object::find::existing::with_conversion::Error> for DeckError {
+	fn from(err: gix::object::find::existing::with_conversion::Error) -> Self {
+		DeckError::Git(err.to_string())
+	}
 }
