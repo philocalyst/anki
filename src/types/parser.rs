@@ -1,14 +1,10 @@
-use std::collections::HashMap;
+use crate::types::note::TextElement;
 
-use chumsky::span::SimpleSpan;
-
-use crate::types::note::{NoteField, NoteModel, TextElement};
-
-struct ParserNoteModel<'a> {
-	pub model:   Option<&'a NoteModel>,
-	pub span:    Option<SimpleSpan>,
-	pub aliases: HashMap<String, &'a NoteField>,
-}
+// struct ParserNoteModel<'a> {
+// 	pub model:   Option<&'a NoteModel>,
+// 	pub span:    Option<SimpleSpan>,
+// 	pub aliases: HashMap<String, &'a NoteField>,
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlashItem {

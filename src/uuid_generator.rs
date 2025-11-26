@@ -1,4 +1,3 @@
-use gix::bstr::ByteSlice;
 use tracing::{debug, instrument, warn};
 use uuid::Uuid;
 

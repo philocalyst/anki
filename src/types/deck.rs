@@ -1,5 +1,5 @@
 use chumsky::Parser;
-use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
+use gix::{Commit, Repository, Tree, object::tree::Entry};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 

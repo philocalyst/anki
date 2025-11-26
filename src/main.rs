@@ -1,8 +1,8 @@
 use std::fs;
 
 use eyre::{Context, Result};
-use flash::{self, change_resolver::{IdentifiedNote, resolve_changes}, change_router::determine_changes, deck_locator::{self, find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::ONote}};
-use tracing::{error, info, instrument, warn};
+use flash::{self, change_resolver::{IdentifiedNote, resolve_changes}, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::ONote}};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 #[instrument]
