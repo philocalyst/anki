@@ -186,27 +186,27 @@ pub fn flash<'a>(
 
 	// A line can end with a newline or the end of the input
 	let eol = text::newline().or(end());
-	let line_ending = ws.clone().then_ignore(eol);
+	let line_ending = ws.then_ignore(eol);
 
 	// "= Model Name =" line
 	let note_model = just('=')
 		.ignore_then(none_of('=').repeated().collect::<String>())
 		.then_ignore(just('='))
 		.map(|name| FlashItem::NoteModel(name.trim().to_string()))
-		.then_ignore(line_ending.clone());
+		.then_ignore(line_ending);
 
 	// "alias <from> to <to>"
 	let identifier = none_of([' ', '\t', '\n', ':']).repeated().at_least(1).collect::<String>();
 
 	let alias = text::keyword("alias")
-		.ignore_then(ws.clone())
-		.ignore_then(identifier.clone())
-		.then_ignore(ws.clone())
+		.ignore_then(ws)
+		.ignore_then(identifier)
+		.then_ignore(ws)
 		.then_ignore(text::keyword("to"))
-		.then_ignore(ws.clone())
+		.then_ignore(ws)
 		.then(identifier)
 		.map(|(to, from)| FlashItem::Alias { from, to })
-		.then_ignore(line_ending.clone());
+		.then_ignore(line_ending);
 
 	// Cloze parsing
 	let cloze_content = none_of(['|', '}', '\n'])
@@ -215,7 +215,7 @@ pub fn flash<'a>(
 		.collect::<String>()
 		.map(|s| s.trim().to_string());
 
-	let cloze_hint = just('|').ignore_then(cloze_content.clone()).or_not();
+	let cloze_hint = just('|').ignore_then(cloze_content).or_not();
 
 	let cloze = just('{')
 		.ignore_then(cloze_content)
@@ -233,7 +233,7 @@ pub fn flash<'a>(
 		.collect::<Vec<_>>()
 		.delimited_by(just('['), just(']'))
 		.map(FlashItem::Tags)
-		.then_ignore(line_ending.clone());
+		.then_ignore(line_ending);
 
 	// Field content (text and cloze deletions)
 	let regular_text =
@@ -250,16 +250,16 @@ pub fn flash<'a>(
 	let field_name = text::ident().map(|s: &str| s.to_string()).then_ignore(just(':'));
 
 	let field_pair = field_name
-		.then_ignore(ws.clone())
+		.then_ignore(ws)
 		.then(content)
 		.map(|(name, content)| FlashItem::Field { name, content })
-		.then_ignore(line_ending.clone());
+		.then_ignore(line_ending);
 
 	// Comment line: "// comment text"
 	let comment = just("//")
 		.ignore_then(none_of('\n').repeated().collect::<String>())
 		.map(FlashItem::Comment)
-		.then_ignore(line_ending.clone());
+		.then_ignore(line_ending);
 
 	// A blank line is now just a newline that isn't part of another item's ending
 	let blank_line = text::newline().to(FlashItem::BlankLine);
