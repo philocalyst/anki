@@ -14,8 +14,8 @@ pub enum Transforms<'a> {
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'a>(
-	deck_1: &'a Vec<Note>,
-	deck_2: &'a Vec<Note>,
+	deck_1: &'a Vec<&Note>,
+	deck_2: &'a Vec<&Note>,
 ) -> Result<Option<Transforms<'a>>, DeckError> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
@@ -38,7 +38,7 @@ pub fn determine_changes<'a>(
 					deck_2_idx += 1;
 				} else {
 					// Card at deck_2_idx is new - record the addition
-					additions.push((deck_2_idx, &deck_2[deck_2_idx]));
+					additions.push((deck_2_idx, deck_2[deck_2_idx]));
 					deck_2_idx += 1;
 				}
 			}
@@ -95,7 +95,7 @@ pub fn determine_changes<'a>(
 		let mut modifications = Vec::new();
 		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 			if card1 != card2 {
-				modifications.push((index, card2));
+				modifications.push((index, *card2));
 			}
 		}
 		return Ok(Some(Transforms::Modifications(modifications)));

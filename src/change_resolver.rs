@@ -15,8 +15,8 @@ use crate::{change_router::Transforms::{self, Additions, Deletions, Modification
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
-	transformations: &'a Transforms<'a>,
-	substrate: &mut Vec<Identified<Note<'a>>>,
+	transformations: &Transforms<'a>,
+	substrate: &mut Vec<Identified<&'a Note<'a>>>,
 	host_uuid: Uuid,
 ) {
 	match transformations {
@@ -24,25 +24,21 @@ pub fn resolve_changes<'a>(
 			for (idx, new_note) in additions {
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
-
-				substrate.insert(*idx, new_note.to_owned().to_owned().identified(base_uuid));
+				substrate.insert(*idx, Identified { id: base_uuid, inner: *new_note });
 			}
 		}
-
 		Deletions(deletions) => {
 			// Deletions are reversed during change vector creation
 			for idx in deletions {
 				substrate.remove(*idx);
 			}
 		}
-
 		Modifications(modifications) => {
 			for (idx, modified_note) in modifications {
 				let existing_id = substrate[*idx].id;
-				substrate[*idx] = modified_note.to_owned().to_owned().identified(existing_id);
+				substrate[*idx] = Identified { id: existing_id, inner: *modified_note };
 			}
 		}
-
 		Reorders(mappings) => {
 			for (from, to) in mappings {
 				substrate.swap(*from, *to);
