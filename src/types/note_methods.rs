@@ -1,6 +1,13 @@
 use std::{fs, path::Path};
 
-use crate::{error::DeckError, types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, TextElement}}};
+use crate::{error::DeckError, types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, Identified, TextElement}}};
+
+// Extension trait to add .identified() method
+pub trait Identifiable: Sized {
+	fn identified(self, id: Uuid) -> Identified<Self> { Identified { id, inner: self } }
+
+	fn with_new_id(self) -> Identified<Self> { Identified { id: Uuid::new_v4(), inner: self } }
+}
 
 impl super::note::NoteModel {
 	pub fn complete(&mut self, dir: &Path) -> Result<(), DeckError> {

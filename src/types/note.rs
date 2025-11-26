@@ -2,8 +2,16 @@ use std::path::PathBuf;
 
 use semver::Version;
 use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::types::config::{Defaults, Template};
+
+// Wrapper that adds an ID to any type
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Identified<T> {
+	pub id:    Uuid,
+	pub inner: T,
+}
 
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct Note<'a> {
