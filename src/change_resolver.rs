@@ -11,16 +11,6 @@ use uuid::Uuid;
 
 use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::note::ONote, uuid_generator};
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct IdentifiedNote {
-	pub id:   Uuid,
-	pub note: ONote,
-}
-
-impl<'a> IdentifiedNote {
-	pub fn new(note: ONote, id: Uuid) -> Self { IdentifiedNote { id, note } }
-}
-
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
