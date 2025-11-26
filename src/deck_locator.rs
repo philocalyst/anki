@@ -8,7 +8,7 @@ pub struct DeckLocator;
 
 impl DeckLocator {
 	#[instrument]
-	pub fn find_deck_directory() -> Result<PathBuf, DeckError<'_>> {
+	pub fn find_deck_directory<'a>() -> Result<PathBuf, DeckError> {
 		info!("Searching for deck directory");
 
 		let dirs: Vec<PathBuf> = fs::read_dir(".")?
@@ -28,9 +28,7 @@ impl DeckLocator {
 	}
 
 	#[instrument]
-	pub fn scan_deck_contents(
-		deck_path: &Path,
-	) -> Result<(Vec<PathBuf>, Vec<PathBuf>), DeckError<'_>> {
+	pub fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), DeckError> {
 		info!("Scanning deck contents at {:?}", deck_path);
 
 		let mut models = Vec::new();

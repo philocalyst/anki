@@ -5,10 +5,10 @@ use tracing::{debug, info, instrument};
 use crate::{error::DeckError, types::note::NoteModel};
 
 #[instrument]
-pub fn load_models(
+pub fn load_models<'a>(
 	model_paths: &[PathBuf],
 	deck_path: &Path,
-) -> Result<Vec<NoteModel>, DeckError<'_>> {
+) -> Result<Vec<NoteModel>, DeckError> {
 	info!("Loading {} models", model_paths.len());
 
 	let mut all_models = Vec::new();

@@ -16,7 +16,7 @@ pub enum Transforms<'a> {
 pub fn determine_changes<'a>(
 	deck_1: &'a Vec<ONote>,
 	deck_2: &'a Vec<ONote>,
-) -> Result<Option<Transforms<'a>>, DeckError<'a>> {
+) -> Result<Option<Transforms<'a>>, DeckError> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
 		return Ok(None);

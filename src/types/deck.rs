@@ -1,18 +1,9 @@
 use chumsky::Parser;
-use gix::{
-	bstr::{ByteSlice, ByteVec},
-	object::tree::Entry,
-	Commit, Repository, Tree,
-};
+use gix::{Commit, Repository, Tree, bstr::{ByteSlice, ByteVec}, object::tree::Entry};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{
-	error::DeckError,
-	parse::{build_notes, flash},
-	types::note::{Note, NoteModel},
-	uuid_generator,
-};
+use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator};
 
 pub struct Deck {
 	models:      Vec<NoteModel>,
@@ -27,7 +18,7 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError<'_>> {
+	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
 		debug!("Looking for model: {}", name);
 		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
 			warn!("Model '{}' not found", name);
@@ -36,17 +27,19 @@ impl Deck {
 	}
 
 	#[instrument(skip(self))]
-	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, DeckError<'a>> {
+	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
 		debug!("Parsing card content");
-		let items = flash().parse(content).map_err(|e| DeckError::Parse(e.into_iter().map(|e| e.map(|c| c.to_string())).collect()))?;
-		build_notes(items, &self.models)
+		let items = flash(&self.models)
+			.parse(content)
+			.into_result()
+			.map_err(|e| DeckError::Parse(e.into_iter().map(|e| e.into_owned()).collect()))?;
 	}
 
 	#[instrument(skip(self))]
 	pub fn get_file_history(
 		&self,
 		target: &str,
-	) -> Result<Vec<(gix::object::tree::Entry<'_>, gix::Commit<'_>)>, DeckError<'_>> {
+	) -> Result<Vec<(gix::object::tree::Entry<'_>, gix::Commit<'_>)>, DeckError> {
 		info!("Finding history of file: {}", target);
 
 		let mut history = Vec::new();
@@ -81,7 +74,7 @@ impl Deck {
 			for parent_id in parent_ids {
 				let parent_commit = self.backing_vcs.find_commit(parent_id)?;
 				let parent_tree = parent_commit.tree()?;
-				let parent_.entry = parent_tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
+				let parent_entry = parent_tree.lookup_entry_by_path(target)?.filter(|e| e.mode().is_blob());
 
 				match parent_entry {
 					None => {
@@ -123,7 +116,7 @@ impl Deck {
 		parent_tree: &Tree,
 		current_tree: &Tree,
 		path: &str,
-	) -> Result<(), DeckError<'_>> {
+	) -> Result<(), DeckError> {
 		let parent_entry = parent_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
 		let current_entry = current_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
 
@@ -141,14 +134,13 @@ impl Deck {
 		}
 
 		let blob = self.backing_vcs.find_blob(entry.id())?;
-		let content = String::from_utf8(blob.data.clone()).map_err(|_| {
-			DeckError::InvalidUtf8(self.backing_vcs.work_dir().unwrap_or_default().to_path_buf())
-		})?;
+		let content = String::from_utf8(blob.data.clone())
+			.map_err(|_| DeckError::InvalidUtf8(self.backing_vcs.workdir().unwrap().to_path_buf()))?;
 		Ok(content)
 	}
 
 	#[instrument(skip(self))]
-	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, DeckError<'_>> {
+	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, DeckError> {
 		let (entry, commit) = target;
 		let author = commit.author()?;
 		let host_uuid =

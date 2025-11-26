@@ -1,16 +1,9 @@
 use std::{fs, path::Path};
 
-use crate::{
-	error::DeckError,
-	types::{
-		crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig},
-		crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType},
-		note::{Cloze, TextElement},
-	},
-};
+use crate::{error::DeckError, types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, TextElement}}};
 
 impl super::note::NoteModel {
-	pub fn complete(&mut self, dir: &Path) -> Result<(), DeckError<'_>> {
+	pub fn complete(&mut self, dir: &Path) -> Result<(), DeckError> {
 		// Load CSS if present
 		let css_path = dir.join("style.css");
 		if css_path.exists() {
@@ -65,8 +58,8 @@ impl super::note::NoteModel {
 						templates.last_mut().unwrap()
 					};
 
-					let content = fs::read_to_string(&path)
-						.map_err(|_| DeckError::TemplateNotFound(path.clone()))?;
+					let content =
+						fs::read_to_string(&path).map_err(|_| DeckError::TemplateNotFound(path.clone()))?;
 
 					// Assign based on side
 					if side.starts_with("front") {
