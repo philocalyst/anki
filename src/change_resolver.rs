@@ -16,7 +16,7 @@ use crate::{change_router::Transforms::{self, Additions, Deletions, Modification
 /// the state of the list over time, and returning its stable representation.
 pub fn resolve_changes<'a>(
 	transformations: &Transforms<'a>,
-	substrate: &mut Vec<Identified<&'a Note<'a>>>,
+	substrate: &mut Vec<Identified<Note<'a>>>,
 	host_uuid: Uuid,
 ) {
 	match transformations {
@@ -24,7 +24,8 @@ pub fn resolve_changes<'a>(
 			for (idx, new_note) in additions {
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
-				substrate.insert(*idx, Identified { id: base_uuid, inner: *new_note });
+				substrate
+					.insert(*idx, Identified { id: base_uuid, inner: new_note.to_owned().to_owned() });
 			}
 		}
 		Deletions(deletions) => {
@@ -36,7 +37,8 @@ pub fn resolve_changes<'a>(
 		Modifications(modifications) => {
 			for (idx, modified_note) in modifications {
 				let existing_id = substrate[*idx].id;
-				substrate[*idx] = Identified { id: existing_id, inner: *modified_note };
+				substrate[*idx] =
+					Identified { id: existing_id, inner: modified_note.to_owned().to_owned() };
 			}
 		}
 		Reorders(mappings) => {

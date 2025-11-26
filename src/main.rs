@@ -1,7 +1,7 @@
-use std::fs;
+use std::{borrow::Cow, fs};
 
 use eyre::{Context, Result};
-use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
+use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::Note, note_methods::Identifiable}};
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
@@ -55,31 +55,46 @@ fn main() -> Result<()> {
 	// the token of trade
 	let history = deck.get_file_history("index.flash").wrap_err("Failed to get file history")?;
 	let mut point = 0;
+	let mut last_cards = Vec::new();
+	let mut static_cards = Vec::new();
 
-	let mut all_contents: Vec<String> = Vec::new();
-	let mut all_cards: Vec<Vec<Note>> = Vec::new();
-	let mut last_cards: Vec<&Note> = Vec::new();
-	let mut static_cards: Vec<Identified<&Note>> = Vec::new();
+	while point < history.len() {
+		let (active_entry, active_commit) = history[point].clone();
+		let content = deck.read_file_content(&active_entry).wrap_err("Failed to read file content")?;
 
-	for entry in deck.read_journal_entries()? {
-		let content = deck.read_file_content(&entry).wrap_err("Failed to read file content")?;
+		// Parse and immediately extract owned data
+		let active_cards: Vec<Note> = deck
+			.parse_cards(content.as_ref())
+			.wrap_err("Failed to parse cards from history")?
+			.into_iter()
+			.map(|mut note| {
+				note.model = Cow::Owned(note.model.into_owned());
+				note
+			})
+			.collect();
 
-		all_contents.push(content);
-		let content_ref = all_contents.last().unwrap();
+		if point == 0 {
+			// Generate initial set of UUIDs
+			let uuids = deck
+				.generate_note_uuids((active_entry, active_commit))
+				.wrap_err("Failed to generate UUIDs")?;
+			static_cards = active_cards.iter().zip(uuids).map(|(card, id)| card.identified(id)).collect();
+			last_cards = active_cards;
+			point += 1;
+			continue;
+		}
 
-		let active_cards: Vec<Note> =
-			deck.parse_cards(content_ref).wrap_err("Failed to parse cards from history")?;
+		let possible_changes =
+			determine_changes(&last_cards, &active_cards).wrap_err("Failed to determine changes")?;
 
-		all_cards.push(active_cards);
-		let active_cards_ref: Vec<&Note> = all_cards.last().unwrap().iter().collect();
-
-		if let Some(changes) =
-			determine_changes(&last_cards, &active_cards_ref).wrap_err("Failed to determine changes")?
-		{
+		if let Some(changes) = possible_changes {
+			// Assuming resolve_uuids mutates static_cards in place or returns new value
+			// If it returns a new value:
 			resolve_changes(&changes, &mut static_cards, Uuid::default());
 		}
 
-		last_cards = active_cards_ref;
+		last_cards = active_cards;
+		point += 1;
 	}
 	dbg!(&static_cards);
 
