@@ -4,7 +4,7 @@ use semver::Version;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::types::config::{Defaults, Template};
+use crate::types::{config::{Defaults, Template}, note_methods::Identifiable};
 
 // Wrapper that adds an ID to any type
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -19,6 +19,10 @@ pub struct Note<'a> {
 	pub model:  &'a NoteModel,
 	pub tags:   Vec<String>,
 }
+
+// All notes can be identified
+impl Identifiable for Note<'_> {}
+impl Identifiable for ONote {}
 
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct ONote {
