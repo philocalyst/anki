@@ -67,9 +67,10 @@ fn main() -> Result<()> {
 			.parse_cards(content.as_ref())
 			.wrap_err("Failed to parse cards from history")?
 			.into_iter()
-			.map(|mut note| {
-				note.model = Cow::Owned(note.model.into_owned());
-				note
+			.map(|note| Note {
+				fields: note.fields.clone(),
+				model:  Cow::Owned(note.model.into_owned()),
+				tags:   note.tags.clone(),
 			})
 			.collect();
 
@@ -78,14 +79,17 @@ fn main() -> Result<()> {
 			let uuids = deck
 				.generate_note_uuids((active_entry, active_commit))
 				.wrap_err("Failed to generate UUIDs")?;
-			static_cards = active_cards.iter().zip(uuids).map(|(card, id)| card.identified(id)).collect();
+
+			static_cards =
+				active_cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect();
+
 			last_cards = active_cards;
 			point += 1;
 			continue;
 		}
 
-		let possible_changes =
-			determine_changes(&last_cards, &active_cards).wrap_err("Failed to determine changes")?;
+		let possible_changes = determine_changes(last_cards.as_slice(), &active_cards)
+			.wrap_err("Failed to determine changes")?;
 
 		if let Some(changes) = possible_changes {
 			// Assuming resolve_uuids mutates static_cards in place or returns new value
@@ -93,7 +97,7 @@ fn main() -> Result<()> {
 			resolve_changes(&changes, &mut static_cards, Uuid::default());
 		}
 
-		last_cards = active_cards;
+		last_cards = active_cards.clone();
 		point += 1;
 	}
 	dbg!(&static_cards);

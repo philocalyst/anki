@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{error::DeckError, types::note::Note};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Transforms<'a> {
 	Additions(Vec<(usize, &'a Note<'a>)>),
 	Deletions(Vec<usize>),
@@ -13,10 +13,11 @@ pub enum Transforms<'a> {
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
-pub fn determine_changes<'a>(
-	deck_1: &'a [Note],
-	deck_2: &'a [Note],
-) -> Result<Option<Transforms<'a>>, DeckError> {
+pub fn determine_changes<'a, 'b>(
+	deck_1: &'a [Note], // The old deck is MORE disposable
+	deck_2: &'b [Note],
+	// Transforms are relevant only to the new deck
+) -> Result<Option<Transforms<'b>>, DeckError> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
 		return Ok(None);
