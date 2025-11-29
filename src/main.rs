@@ -3,12 +3,17 @@ use std::{borrow::Cow, fs};
 use eyre::{Context, Result};
 use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::Note, note_methods::Identifiable}};
 use tracing::{info, instrument, warn};
+use tracing_subscriber::fmt;
 use uuid::Uuid;
 
 #[instrument]
 fn main() -> Result<()> {
 	// Initialize tracing
-	tracing_subscriber::fmt().with_target(false).with_level(true).init();
+	tracing_subscriber::fmt()
+		.with_target(false)
+		.with_timer(fmt::time::ChronoUtc::new("Sec.%S.Nanos.%f".to_string()))
+		.init();
+
 	color_eyre::install()?;
 
 	info!("Starting Anki deck parser");
@@ -100,7 +105,6 @@ fn main() -> Result<()> {
 		last_cards = active_cards.clone();
 		point += 1;
 	}
-	dbg!(&static_cards);
 
 	info!("Deck parsing completed");
 	Ok(())
