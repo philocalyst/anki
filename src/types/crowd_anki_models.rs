@@ -1,6 +1,41 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::types::crowd_anki_config::DeckConfig;
+
+fn default_zero() -> Option<i32> { Some(0) }
+
+fn default_string() -> Option<String> { Some(String::new()) }
+
+fn default_complex() -> Option<Vec<(i32, String, Vec<i32>)>> {
+	Some(vec![(0, String::new(), vec![])])
+}
+
+fn serialize_option_string<S>(val: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	serializer.serialize_str(val.as_deref().unwrap_or(""))
+}
+
+fn serialize_option_i32<S>(val: &Option<i32>, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	serializer.serialize_i32(val.unwrap_or(0))
+}
+
+fn serialize_option_complex<S>(
+	val: &Option<Vec<(i32, String, Vec<i32>)>>,
+	serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	use serde::Serialize;
+	let default = vec![(0, String::new(), vec![])];
+	let data = val.as_ref().unwrap_or(&default);
+	data.serialize(serializer)
+}
 
 #[derive(Debug, Clone)]
 pub enum NoteModelType {
@@ -11,7 +46,7 @@ pub enum NoteModelType {
 impl<'de> Deserialize<'de> for NoteModelType {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
-		D: serde::Deserializer<'de>,
+		D: Deserializer<'de>,
 	{
 		let v = i32::deserialize(deserializer)?;
 		match v {
@@ -25,7 +60,7 @@ impl<'de> Deserialize<'de> for NoteModelType {
 impl Serialize for NoteModelType {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
-		S: serde::Serializer,
+		S: Serializer,
 	{
 		let v = match self {
 			NoteModelType::Standard => 0,
@@ -35,8 +70,7 @@ impl Serialize for NoteModelType {
 	}
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "__type__")]
 pub enum CrowdAnkiEntity {
 	Deck(Deck),
@@ -45,13 +79,10 @@ pub enum CrowdAnkiEntity {
 	DeckConfig(DeckConfig),
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Deck {
-	pub name: String,
-
-	pub crowdanki_uuid: String,
-
+	pub name:             String,
+	pub crowdanki_uuid:   String,
 	pub deck_config_uuid: String,
 	pub desc:             String,
 
@@ -71,12 +102,10 @@ pub struct Deck {
 	pub media_files:         Vec<String>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteModel {
 	pub crowdanki_uuid: String,
-
-	pub name: String,
+	pub name:           String,
 
 	#[serde(rename = "type")]
 	pub kind: NoteModelType,
@@ -84,22 +113,33 @@ pub struct NoteModel {
 	pub flds:  Vec<Field>,
 	pub tmpls: Vec<Template>,
 	pub css:   String,
-	pub did:   Option<String>,
+
+	#[serde(default)]
+	pub did: Option<i64>,
 
 	#[serde(rename = "latexPre")]
+	#[serde(default = "default_string")]
+	#[serde(serialize_with = "serialize_option_string")]
 	pub latex_pre: Option<String>,
 
 	#[serde(rename = "latexPost")]
+	#[serde(default = "default_string")]
+	#[serde(serialize_with = "serialize_option_string")]
 	pub latex_post: Option<String>,
 
-	pub req:   Option<Vec<(i32, String, Vec<i32>)>>,
+	#[serde(default = "default_complex")]
+	#[serde(serialize_with = "serialize_option_complex")]
+	pub req: Option<Vec<(i32, String, Vec<i32>)>>,
+
+	#[serde(default = "default_zero")]
+	#[serde(serialize_with = "serialize_option_i32")]
 	pub sortf: Option<i32>,
-	pub tags:  Option<Vec<String>>,
-	pub vers:  Option<Vec<String>>,
+
+	pub tags: Option<Vec<String>>,
+	pub vers: Option<Vec<String>>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Field {
 	pub name:   String,
 	pub ord:    i32,
@@ -110,8 +150,7 @@ pub struct Field {
 	pub media:  Vec<String>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
 	pub name:  String,
 	pub ord:   i32,
@@ -119,21 +158,21 @@ pub struct Template {
 	pub afmt:  String,
 	pub bafmt: Option<String>,
 	pub bqfmt: Option<String>,
-	pub did:   Option<String>,
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-pub struct Note {
-	pub guid: String,
-
-	pub note_model_uuid: String,
-
-	pub fields: Vec<String>,
-	pub tags:   Vec<String>,
-	pub flags:  i32,
 
 	#[serde(default)]
+	pub did: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Note {
+	pub guid:            String,
+	pub note_model_uuid: String,
+	pub fields:          Vec<String>,
+	pub tags:            Vec<String>,
+	pub flags:           i32,
+
+	#[serde(default)]
+	#[serde(rename = "newlyAdded")]
 	pub newly_added: bool,
 
 	#[serde(default)]
