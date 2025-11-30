@@ -3,18 +3,19 @@ use gix::{Commit, Repository, Tree, object::tree::Entry};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::flash, types::note::{Note, NoteModel}, uuid_generator};
+use crate::{error::DeckError, parse::flash, types::note::{Identified, Note, NoteModel}, uuid_generator};
 
-pub struct Deck {
+pub struct Deck<'a> {
 	models:      Vec<NoteModel>,
 	backing_vcs: Repository,
+	pub cards:   Vec<Identified<Note<'a>>>,
 }
 
-impl Deck {
+impl<'b> Deck<'b> {
 	#[instrument(skip(backing_vcs))]
 	pub fn new(models: Vec<NoteModel>, backing_vcs: Repository) -> Self {
 		info!("Creating deck with {} models", models.len());
-		Self { models, backing_vcs }
+		Self { models, backing_vcs, cards: Vec::new() }
 	}
 
 	#[instrument(skip(self))]

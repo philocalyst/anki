@@ -94,12 +94,12 @@ impl super::note::NoteModel {
 use tracing::instrument;
 use uuid::Uuid;
 
-impl<'a> From<Vec<crate::types::note::Note<'a>>> for CrowdAnkiEntity {
-	fn from(notes: Vec<crate::types::note::Note<'a>>) -> Self {
+impl<'a> From<Vec<Identified<crate::types::note::Note<'a>>>> for CrowdAnkiEntity {
+	fn from(notes: Vec<Identified<crate::types::note::Note<'a>>>) -> Self {
 		// Extract unique note models from the notes
 		let note_models: Vec<crate::types::crowd_anki_models::NoteModel> = notes
 			.iter()
-			.map(|note| note.model.clone())
+			.map(|note| note.inner.model.clone())
 			.collect::<std::collections::HashSet<_>>()
 			.into_iter()
 			.map(|model| model.as_ref().into())
@@ -261,14 +261,13 @@ impl<'a> From<Cloze> for ClozeString {
 
 use crate::types::crowd_anki_models::Note;
 
-impl<'a> From<crate::types::note::Note<'a>> for Note {
-	fn from(note: crate::types::note::Note<'a>) -> Self {
-		dbg!(&note.fields);
-
+impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
+	fn from(note: Identified<crate::types::note::Note<'a>>) -> Self {
+		let inner_note = note.inner;
 		let noted = Note {
-			guid:            Uuid::new_v4().to_string(),
+			guid:            note.id.to_string(),
 			note_model_uuid: Uuid::new_v4().to_string(),
-			fields:          note
+			fields:          inner_note
 				.fields
 				.into_iter()
 				.map(|field| {
@@ -287,7 +286,7 @@ impl<'a> From<crate::types::note::Note<'a>> for Note {
 						.collect::<String>()
 				})
 				.collect(),
-			tags:            note.tags,
+			tags:            inner_note.tags,
 			flags:           0,
 			newly_added:     true,
 			data:            None,
