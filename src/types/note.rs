@@ -33,6 +33,8 @@ pub struct NoteField {
 pub struct NoteModel {
 	pub name: String,
 
+	pub id: Uuid,
+
 	// The available templates
 	pub templates: Vec<Template>,
 

@@ -2,6 +2,8 @@ use std::{fs, path::Path};
 
 use crate::{error::DeckError, types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, Identified, TextElement}}};
 
+pub const TESTING_UUID: &str = "505d6508-6ef3-4f2b-a281-0291cf2040ea";
+
 // Extension trait to add .identified() method
 pub trait Identifiable: Sized {
 	fn identified(self, id: Uuid) -> Identified<Self> { Identified { id, inner: self } }
@@ -110,7 +112,7 @@ impl<'a> From<Vec<Identified<crate::types::note::Note<'a>>>> for CrowdAnkiEntity
 
 		// Create a default deck configuration
 		let deck_config = DeckConfig {
-			crowdanki_uuid:  Uuid::new_v4().to_string(),
+			crowdanki_uuid:  TESTING_UUID.to_string(),
 			name:            "Default".to_string(),
 			is_dynamic:      false,
 			max_taken:       Some(20),
@@ -150,7 +152,7 @@ impl<'a> From<Vec<Identified<crate::types::note::Note<'a>>>> for CrowdAnkiEntity
 
 		CrowdAnkiEntity::Deck(Deck {
 			name: "Generated Deck".to_string(),
-			crowdanki_uuid: Uuid::new_v4().to_string(),
+			crowdanki_uuid: TESTING_UUID.to_string(),
 			deck_config_uuid,
 			desc: String::new(),
 			is_dynamic: 0,
@@ -195,7 +197,7 @@ impl<'a> crate::types::note::Note<'a> {
 impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::NoteModel {
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {
-			crowdanki_uuid: Uuid::new_v4().to_string(),
+			crowdanki_uuid: TESTING_UUID.to_string(),
 			name:           model.name.clone(),
 			kind:           NoteModelType::Standard,
 			flds:           model
@@ -266,7 +268,7 @@ impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 		let inner_note = note.inner;
 		let noted = Note {
 			guid:            note.id.to_string(),
-			note_model_uuid: Uuid::new_v4().to_string(),
+			note_model_uuid: inner_note.model.id.to_string(),
 			fields:          inner_note
 				.fields
 				.into_iter()
