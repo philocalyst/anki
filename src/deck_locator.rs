@@ -1,4 +1,4 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{ffi::OsStr, fs, path::{Path, PathBuf}};
 
 use tracing::{debug, error, info, instrument};
 
@@ -35,14 +35,23 @@ pub fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf
 		let entry = entry?;
 		let path = entry.path();
 
-		if entry.file_type()?.is_dir()
-			&& entry.path().extension().and_then(|ext| ext.to_str()) == Some("model")
-		{
-			debug!("Found model directory: {:?}", path);
-			models.push(path);
-		} else if path.extension().and_then(|ext| ext.to_str()) == Some("flash") {
-			debug!("Found card file: {:?}", path);
-			cards.push(path);
+		let extension = path.extension().and_then(|ext| ext.to_str());
+
+		match (entry.file_type(), extension) {
+			(Ok(file_type), Some("model")) if file_type.is_dir() => {
+				debug!("Found model directory: {:?}", path);
+				models.push(path);
+			}
+			(_, Some("flash")) => {
+				debug!("Found card file: {:?}", path);
+				cards.push(path);
+			}
+			_ => {}
+		}
+
+		if entry.file_name() == OsStr::new("config.toml") {
+			debug!("Found configuration file");
+			panic!();
 		}
 	}
 

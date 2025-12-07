@@ -1,7 +1,8 @@
 use std::{borrow::Cow, fs};
 
 use eyre::{Context, Result};
-use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{deck::Deck, note::Note, note_methods::Identifiable}};
+use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::Note, note_methods::Identifiable}};
+use fs_err::write;
 use tracing::{info, instrument, warn};
 use tracing_subscriber::fmt;
 use uuid::Uuid;
@@ -60,6 +61,9 @@ fn main() -> Result<()> {
 	// the token of trade
 	let history = deck.get_file_history("index.flash").wrap_err("Failed to get file history")?;
 	let mut point = 0;
+
+	// TODO: Pre-allocate, possibly switching away from Vecs altogether if
+	// pre-parsing the final proves to be worth it?
 	let mut last_cards = Vec::new();
 	let mut static_cards = Vec::new();
 
@@ -105,6 +109,15 @@ fn main() -> Result<()> {
 		last_cards = active_cards.clone();
 		point += 1;
 	}
+
+	// Done with history
+	drop(history);
+
+	let out: CrowdAnkiEntity = static_cards.into();
+
+	let out = sonic_rs::serde::to_string(&out)?;
+
+	write("flash.json", out)?;
 
 	info!("Deck parsing completed");
 	Ok(())

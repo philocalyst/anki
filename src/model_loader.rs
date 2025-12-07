@@ -22,7 +22,7 @@ pub fn load_models<'a>(
 		let mut model: NoteModel = toml::from_str(&config_content)?;
 
 		// TODO: This path should be more dynamic
-		model.complete(deck_path)?;
+		model.complete(&model_path)?;
 
 		info!("Loaded model: {}", model.name);
 		all_models.push(model);

@@ -155,7 +155,6 @@ fn process_item<'m>(
 		}
 
 		FlashItem::Alias { from, to } => {
-			dbg!(&from, &to);
 			builder.add_alias(from, to);
 		}
 
