@@ -2,10 +2,18 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+pub enum ConfigType {
+	DeckConfig,
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct DeckConfig {
 	// Note: Python uses UUID_FIELD_NAME. If that constant is "crowdanki_uuid", this works.
 	pub crowdanki_uuid: String,
+
+	#[serde(rename = "type")]
+	pub kind: ConfigType,
 
 	pub name: String,
 
@@ -13,6 +21,7 @@ pub struct DeckConfig {
 	pub is_dynamic: bool,
 
 	// Anki key: "maxTaken"
+	#[serde(rename = "camelCase")]
 	pub max_taken: Option<i32>,
 	pub new:       Option<NewConfig>,
 	pub rev:       Option<RevConfig>,

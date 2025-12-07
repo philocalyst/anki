@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use crate::{error::DeckError, types::{crowd_anki_config::{DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, Identified, TextElement}}};
+use crate::{error::DeckError, types::{crowd_anki_config::{ConfigType, DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, Identified, TextElement}}};
 
 pub const TESTING_UUID: &str = "505d6508-6ef3-4f2b-a281-0291cf2040ea";
 
@@ -144,6 +144,7 @@ impl<'a> From<Vec<Identified<crate::types::note::Note<'a>>>> for CrowdAnkiEntity
 			}),
 			autoplay:        Some(true),
 			replayq:         Some(true),
+			kind:            ConfigType::DeckConfig,
 			timer:           Some(0),
 			another_retreat: Some(false),
 		};
@@ -197,7 +198,7 @@ impl<'a> crate::types::note::Note<'a> {
 impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::NoteModel {
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {
-			crowdanki_uuid: TESTING_UUID.to_string(),
+			crowdanki_uuid: model.id.to_string(),
 			name:           model.name.clone(),
 			kind:           NoteModelType::Standard,
 			flds:           model

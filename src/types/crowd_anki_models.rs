@@ -2,14 +2,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::types::crowd_anki_config::DeckConfig;
 
-fn default_zero() -> Option<i32> { Some(0) }
-
-fn default_string() -> Option<String> { Some(String::new()) }
-
-fn default_complex() -> Option<Vec<(i32, String, Vec<i32>)>> {
-	Some(vec![(0, String::new(), vec![])])
-}
-
 fn serialize_option_string<S>(val: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
 where
 	S: Serializer,
@@ -118,20 +110,16 @@ pub struct NoteModel {
 	pub did: Option<i64>,
 
 	#[serde(rename = "latexPre")]
-	#[serde(default = "default_string")]
 	#[serde(serialize_with = "serialize_option_string")]
 	pub latex_pre: Option<String>,
 
 	#[serde(rename = "latexPost")]
-	#[serde(default = "default_string")]
 	#[serde(serialize_with = "serialize_option_string")]
 	pub latex_post: Option<String>,
 
-	#[serde(default = "default_complex")]
 	#[serde(serialize_with = "serialize_option_complex")]
 	pub req: Option<Vec<(i32, String, Vec<i32>)>>,
 
-	#[serde(default = "default_zero")]
 	#[serde(serialize_with = "serialize_option_i32")]
 	pub sortf: Option<i32>,
 
