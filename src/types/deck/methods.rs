@@ -1,11 +1,55 @@
+use std::{fs, path::Path};
+
 use chumsky::Parser;
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{error::DeckError, parse::flash, types::{crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
+use crate::{deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::flash, types::{crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
 
 impl<'b> super::Deck<'b> {
+	#[instrument(skip(deck_path))]
+	pub fn from<P: AsRef<Path>>(deck_path: P) -> Result<Self, DeckError> {
+		let deck_path = deck_path.as_ref();
+		info!("Initializing deck from: {:?}", deck_path);
+
+		// Scan deck contents
+		let (model_paths, card_paths) = scan_deck_contents(deck_path)
+			.map_err(|e| DeckError::DeckInit(format!("Failed to scan deck contents: {}", e)))?;
+
+		if card_paths.is_empty() {
+			warn!("No card files found in deck directory");
+		}
+
+		// Load models
+		let models = model_loader::load_models(&model_paths, deck_path)
+			.map_err(|e| DeckError::DeckInit(format!("Failed to load models: {}", e)))?;
+
+		info!("Loaded {} models", models.len());
+
+		// Open Git repository
+		let repo_path = deck_path.join(".git");
+		debug!("Opening repository at: {:?}", repo_path);
+		let backing_vcs = gix::open(repo_path)
+			.map_err(|e| DeckError::DeckInit(format!("Failed to open git repository: {}", e)))?;
+
+		// Load or create default configuration
+		let config_path = deck_path.join("config.toml");
+
+		let config_content = fs::read_to_string(&config_path)
+			.map_err(|_| DeckError::DeckConfigNotFound(config_path.clone()))?;
+
+		let configuration: DeckConfig = toml::from_str(&config_content)?;
+
+		dbg!(&configuration);
+
+		// Initialize with empty cards - these will be populated by parsing card files
+		let cards = Vec::new();
+
+		info!("Deck initialized successfully");
+		Ok(Self { models, backing_vcs, cards, configuration })
+	}
+
 	#[instrument(skip(backing_vcs))]
 	pub fn new(
 		models: Vec<NoteModel>,
