@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub enum ConfigType {
+	#[default]
 	DeckConfig,
 }
 
@@ -13,11 +14,14 @@ pub struct DeckConfig {
 	pub crowdanki_uuid: String,
 
 	#[serde(rename = "type")]
+	#[serde(skip)]
+	#[serde(default)]
 	pub kind: ConfigType,
 
 	pub name: String,
 
 	#[serde(rename = "dyn")]
+	#[serde(skip)]
 	pub is_dynamic: bool,
 
 	// Anki key: "maxTaken"

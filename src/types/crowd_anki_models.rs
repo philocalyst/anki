@@ -29,8 +29,9 @@ where
 	data.serialize(serializer)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub enum NoteModelType {
+	#[default]
 	Standard,
 	Cloze,
 }
@@ -100,6 +101,8 @@ pub struct NoteModel {
 	pub name:           String,
 
 	#[serde(rename = "type")]
+	#[serde(skip)]
+	#[serde(default)]
 	pub kind: NoteModelType,
 
 	pub flds:  Vec<Field>,
