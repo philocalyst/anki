@@ -11,15 +11,20 @@ evalexpr = { path = "./evalexpr", features = ["serde"]}
 eyre = "0.6.12"
 fs-err = "3.1.1"
 gix = "0.74.1"
+opentelemetry = "0.31.0"
+opentelemetry-stdout = "0.31.0"
+opentelemetry_sdk = "0.31.0"
 ordered-float = { version = "5.1.0", features = ["serde"] }
 semver = { version = "1.0.26", features = ["serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
+sonic-rs = "0.5.6"
 thiserror = "2.0.17"
 toml = "0.9.4"
 tracing = "0.1.41"
-tracing-subscriber = "0.3.20"
-uuid = { version = "1.18.1", features = ["v4", "v5"] }
+tracing-opentelemetry = "0.32.0"
+tracing-subscriber = { version = "0.3.20", features = ["chrono"] }
+uuid = { version = "1.18.1", features = ["serde", "v4", "v5"] }
 
 [features]
 default = ["serde"]
