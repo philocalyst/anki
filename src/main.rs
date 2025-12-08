@@ -3,9 +3,28 @@ use std::{borrow::Cow, fs};
 use eyre::{Context, Result};
 use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::Note, note_methods::Identifiable}};
 use fs_err::write;
+use opentelemetry::trace::{Tracer, TracerProvider as _};
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_stdout::SpanExporter;
 use tracing::{info, instrument, warn};
-use tracing_subscriber::fmt;
+use tracing_subscriber::{Registry, fmt::{self, time::ChronoUtc}, prelude::__tracing_subscriber_SubscriberExt};
 use uuid::Uuid;
+
+pub fn init_opentelemetry_tracing() {
+	// Create a new OpenTelemetry trace pipeline that prints to stdout
+	let provider = SdkTracerProvider::builder().with_simple_exporter(SpanExporter::default()).build();
+	let tracer = provider.tracer("readme_example");
+
+	// Create a tracing layer with the configured OpenTelemetry tracer
+	let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+	let fmt_layer =
+		fmt::layer().with_target(false).with_timer(ChronoUtc::new("Sec.%S.Nanos.%f".to_string()));
+
+	let subscriber = Registry::default()
+        .with(telemetry_layer) // OpenTelemetry layer
+        .with(fmt_layer); // Formatted console output layer
+}
 
 #[instrument]
 fn main() -> Result<()> {
