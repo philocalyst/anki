@@ -35,6 +35,9 @@ pub enum DeckError {
 	#[error("Model config file not found: {0:?}")]
 	ModelConfigNotFound(PathBuf),
 
+	#[error("Deck config file not found: {0:?}")]
+	DeckConfigNotFound(PathBuf),
+
 	#[error("Template file not found: {0:?}")]
 	TemplateNotFound(PathBuf),
 
@@ -55,6 +58,9 @@ pub enum DeckError {
 
 	#[error("Failed to commit changes to git.")]
 	Commit(#[from] gix::object::commit::Error),
+
+	#[error("Initialization Errors")]
+	DeckInit(String),
 
 	#[error("Failed to parse deck: {0}")]
 	Parse(String),
