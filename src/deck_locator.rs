@@ -48,11 +48,6 @@ pub fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf
 			}
 			_ => {}
 		}
-
-		if entry.file_name() == OsStr::new("config.toml") {
-			debug!("Found configuration file");
-			panic!();
-		}
 	}
 
 	info!("Found {} models and {} card files", models.len(), cards.len());

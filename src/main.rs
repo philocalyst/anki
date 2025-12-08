@@ -28,12 +28,7 @@ pub fn init_opentelemetry_tracing() {
 
 #[instrument]
 fn main() -> Result<()> {
-	// Initialize tracing
-	tracing_subscriber::fmt()
-		.with_target(false)
-		.with_timer(fmt::time::ChronoUtc::new("Sec.%S.Nanos.%f".to_string()))
-		.init();
-
+	init_opentelemetry_tracing();
 	color_eyre::install()?;
 
 	info!("Starting Anki deck parser");
@@ -42,38 +37,7 @@ fn main() -> Result<()> {
 	let deck_path = find_deck_directory().wrap_err("Failed to find deck directory")?;
 	info!("Found deck at: {:?}", deck_path);
 
-	let (model_paths, card_paths) =
-		scan_deck_contents(&deck_path).wrap_err("Failed to scan deck contents")?;
-
-	if card_paths.is_empty() {
-		warn!("No card files found");
-		return Ok(());
-	}
-
-	// Load models
-	let models =
-		model_loader::load_models(&model_paths, &deck_path).wrap_err("Failed to load models")?;
-
-	// Open repository
-	let repo_path = deck_path.join(".git");
-	info!("Opening repository at: {:?}", repo_path);
-	let backing_vcs = gix::open(repo_path).wrap_err("Failed to open git repository")?;
-
-	// Create deck
-	let deck = Deck::new(models, backing_vcs);
-
-	// Parse first card file as example
-	let first_card_path = &card_paths[0];
-	info!("Parsing card file: {:?}", first_card_path);
-	let card_content = fs::read_to_string(first_card_path).wrap_err("Failed to read card file")?;
-
-	let cards = deck.parse_cards(&card_content).wrap_err("Failed to parse cards")?;
-
-	info!("Successfully parsed {} cards", cards.len());
-	for card in &cards {
-		print_note_debug(card);
-	}
-	info!("Generating UUIDs for notes in {}", "index.flash");
+	let mut deck = Deck::from(deck_path)?;
 
 	// Generating against the initial point of creation for the file, taking into
 	// account renames. This should keep things stable as long as the git repo is
@@ -132,7 +96,9 @@ fn main() -> Result<()> {
 	// Done with history
 	drop(history);
 
-	let out: CrowdAnkiEntity = static_cards.into();
+	deck.cards = static_cards;
+
+	let out: CrowdAnkiEntity = deck.into();
 
 	let out = sonic_rs::serde::to_string(&out)?;
 
