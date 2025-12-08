@@ -1,8 +1,9 @@
 use std::{fs, path::Path};
 
-use crate::{error::DeckError, types::{crowd_anki_config::{ConfigType, DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck, Field, NoteModelType}, note::{Cloze, Identified, TextElement}}};
+use tracing::instrument;
+use uuid::Uuid;
 
-pub const TESTING_UUID: &str = "505d6508-6ef3-4f2b-a281-0291cf2040ea";
+use crate::{error::DeckError, types::{crowd_anki_config::{ConfigType, DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, TextElement}}};
 
 // Extension trait to add .identified() method
 pub trait Identifiable: Sized {
@@ -93,69 +94,26 @@ impl super::note::NoteModel {
 	}
 }
 
-use tracing::instrument;
-use uuid::Uuid;
-
-impl<'a> From<Vec<Identified<crate::types::note::Note<'a>>>> for CrowdAnkiEntity {
-	fn from(notes: Vec<Identified<crate::types::note::Note<'a>>>) -> Self {
-		// Extract unique note models from the notes
-		let note_models: Vec<crate::types::crowd_anki_models::NoteModel> = notes
-			.iter()
-			.map(|note| note.inner.model.clone())
-			.collect::<std::collections::HashSet<_>>()
-			.into_iter()
-			.map(|model| model.as_ref().into())
-			.collect();
+impl<'a> From<Deck<'a>> for CrowdAnkiEntity {
+	fn from(deck: Deck<'a>) -> Self {
+		// Convert note models from deck to CrowdAnki format
+		let note_models: Vec<crate::types::crowd_anki_models::NoteModel> =
+			deck.models.iter().map(|model| model.into()).collect();
 
 		// Convert notes to CrowdAnki format
-		let crowd_anki_notes: Vec<Note> = notes.into_iter().map(|note| note.into()).collect();
+		let crowd_anki_notes: Vec<Note> = deck.cards.into_iter().map(|note| note.into()).collect();
 
-		// Create a default deck configuration
-		let deck_config = DeckConfig {
-			crowdanki_uuid:  TESTING_UUID.to_string(),
-			name:            "Default".to_string(),
-			is_dynamic:      false,
-			max_taken:       Some(20),
-			new:             Some(NewConfig {
-				delays:         vec![1, 10],
-				ints:           vec![1, 4, 0],
-				initial_factor: Some(2500),
-				per_day:        Some(20),
-				order:          Some(1),
-				bury:           Some(false),
-				separate:       Some(true),
-			}),
-			rev:             Some(RevConfig {
-				per_day:     Some(200),
-				ease4:       Some(1.3),
-				ivl_fct:     Some(1.0),
-				fuzz:        Some(0.05),
-				hard_factor: Some(1.2),
-				max_ivl:     Some(36500),
-				min_space:   Some(1),
-				bury:        Some(false),
-			}),
-			lapse:           Some(LapseConfig {
-				delays:       vec![10],
-				mult:         0.0,
-				min_int:      Some(1),
-				leech_action: Some(0),
-				leech_fails:  Some(8),
-			}),
-			autoplay:        Some(true),
-			replayq:         Some(true),
-			kind:            ConfigType::DeckConfig,
-			timer:           Some(0),
-			another_retreat: Some(false),
-		};
-
+		// Use the deck's configuration
+		let deck_config = deck.configuration;
 		let deck_config_uuid = deck_config.crowdanki_uuid.clone();
+		let deck_uuid = deck_config.crowdanki_uuid.clone();
+		let deck_name = deck_config.name.clone();
 
-		CrowdAnkiEntity::Deck(Deck {
-			name: "Generated Deck".to_string(),
-			crowdanki_uuid: TESTING_UUID.to_string(),
+		CrowdAnkiEntity::Deck(CrowdAnkiDeck {
+			name: deck_name,
+			crowdanki_uuid: deck_uuid,
 			deck_config_uuid,
-			desc: String::new(),
+			desc: String::new(), // Could be extended to read from deck metadata
 			is_dynamic: 0,
 			extend_new: 0,
 			extend_rev: 0,
@@ -262,12 +220,10 @@ impl<'a> From<Cloze> for ClozeString {
 	}
 }
 
-use crate::types::crowd_anki_models::Note;
-
 impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 	fn from(note: Identified<crate::types::note::Note<'a>>) -> Self {
 		let inner_note = note.inner;
-		let noted = Note {
+		Note {
 			guid:            note.id.to_string(),
 			note_model_uuid: inner_note.model.id.to_string(),
 			fields:          inner_note
@@ -282,7 +238,6 @@ impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 							crate::types::note::TextElement::Cloze(c) => {
 								// Turn into cloze string
 								let clozed: ClozeString = c.into();
-
 								clozed.0
 							}
 						})
@@ -293,8 +248,6 @@ impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 			flags:           0,
 			newly_added:     true,
 			data:            None,
-		};
-
-		noted
+		}
 	}
 }
