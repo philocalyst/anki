@@ -43,56 +43,54 @@ fn main() -> Result<()> {
 	// account renames. This should keep things stable as long as the git repo is
 	// the token of trade
 	let history = deck.get_file_history("index.flash").wrap_err("Failed to get file history")?;
-	let mut point = 0;
 
 	// TODO: Pre-allocate, possibly switching away from Vecs altogether if
 	// pre-parsing the final proves to be worth it?
 	let mut last_cards = Vec::new();
 	let mut static_cards = Vec::new();
 
-	while point < history.len() {
-		let (active_entry, active_commit) = history[point].clone();
+	for (point, (active_entry, active_commit)) in history.iter().enumerate() {
 		let content = deck
-			.read_file_content(&(&active_entry).try_into()?)
+			.read_file_content(&(active_entry).try_into()?)
 			.wrap_err("Failed to read file content")?;
 
 		// Parse and immediately extract owned data
 		let active_cards: Vec<Note> = deck
-			.parse_cards(content.as_ref())
+			.parse_cards(&content)
 			.wrap_err("Failed to parse cards from history")?
 			.into_iter()
+			// Hard copy for ownership concerns
 			.map(|note| Note {
-				fields: note.fields.clone(),
-				model:  Cow::Owned(note.model.into_owned()),
-				tags:   note.tags.clone(),
+				fields: note.fields,
+				model: Cow::Owned(note.model.into_owned()),
+				tags: note.tags,
 			})
 			.collect();
 
 		if point == 0 {
 			// Generate initial set of UUIDs
 			let uuids = deck
-				.generate_note_uuids((active_entry, active_commit))
+				.generate_note_uuids((active_entry.clone(), active_commit.clone()))
 				.wrap_err("Failed to generate UUIDs")?;
 
 			static_cards =
 				active_cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect();
 
 			last_cards = active_cards;
-			point += 1;
 			continue;
 		}
 
-		let possible_changes = determine_changes(last_cards.as_slice(), &active_cards)
-			.wrap_err("Failed to determine changes")?;
-
-		if let Some(changes) = possible_changes {
+		// It might be that a change was made but nothing of note happened, like a misc.
+		// newline, check for this.
+		if let Some(changes) =
+			determine_changes(&last_cards, &active_cards).wrap_err("Failed to determine changes")?
+		{
 			// Assuming resolve_uuids mutates static_cards in place or returns new value
 			// If it returns a new value:
 			resolve_changes(&changes, &mut static_cards, Uuid::default());
 		}
 
-		last_cards = active_cards.clone();
-		point += 1;
+		last_cards = active_cards;
 	}
 
 	// Done with history
