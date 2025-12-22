@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}};
 
 use tracing::{debug, error, info, instrument};
 
@@ -8,20 +8,14 @@ use crate::error::DeckError;
 pub fn find_deck_directory<'a>() -> Result<PathBuf, DeckError> {
 	info!("Searching for deck directory");
 
-	let dirs: Vec<PathBuf> = fs::read_dir(".")?
-		.filter_map(Result::ok)
-		.filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
-		.map(|entry| entry.path())
-		.collect();
+	pub fn is_deck_dir(path: &Path) -> bool {
+		path.is_dir() && path.extension().and_then(|e| e.to_str()) == Some("deck")
+	}
 
-	dirs.into_iter().find(|dir| is_deck_dir(dir)).ok_or_else(|| {
+	fs::read_dir(".")?.flatten().map(|e| e.path()).find(|p| is_deck_dir(p)).ok_or_else(|| {
 		error!("No deck directory found");
 		DeckError::NoDeckFound
 	})
-}
-
-pub fn is_deck_dir(path: &Path) -> bool {
-	path.is_dir() && path.extension().and_then(|e| e.to_str()) == Some("deck")
 }
 
 #[instrument]
@@ -32,21 +26,15 @@ pub fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf
 	let mut cards = Vec::new();
 
 	for entry in fs::read_dir(deck_path)? {
-		let entry = entry?;
-		let path = entry.path();
+		let path = entry?.path();
+		let extension = path.extension().and_then(|s| s.to_str());
 
-		let extension = path.extension().and_then(|ext| ext.to_str());
-
-		match (entry.file_type(), extension) {
-			(Ok(file_type), Some("model")) if file_type.is_dir() => {
-				debug!("Found model directory: {:?}", path);
-				models.push(path);
-			}
-			(_, Some("flash")) => {
-				debug!("Found card file: {:?}", path);
-				cards.push(path);
-			}
-			_ => {}
+		if extension == Some("model") && path.is_dir() {
+			debug!("Found model directory: {:?}", path);
+			models.push(path);
+		} else if extension == Some("flash") && path.is_file() {
+			debug!("Found card file: {:?}", path);
+			cards.push(path);
 		}
 	}
 
