@@ -52,7 +52,9 @@ fn main() -> Result<()> {
 
 	while point < history.len() {
 		let (active_entry, active_commit) = history[point].clone();
-		let content = deck.read_file_content(&active_entry).wrap_err("Failed to read file content")?;
+		let content = deck
+			.read_file_content(&(&active_entry).try_into()?)
+			.wrap_err("Failed to read file content")?;
 
 		// Parse and immediately extract owned data
 		let active_cards: Vec<Note> = deck

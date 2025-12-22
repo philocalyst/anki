@@ -5,7 +5,7 @@ use gix::{Commit, Repository, Tree, object::tree::Entry};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::flash, types::{crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
+use crate::{deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::flash, types::{BEntry, crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
 
 impl<'b> super::Deck<'b> {
 	#[instrument(skip(deck_path))]
@@ -172,20 +172,22 @@ impl<'b> super::Deck<'b> {
 	}
 
 	#[instrument(skip(self))]
-	pub fn read_file_content(&self, entry: &Entry) -> Result<String, DeckError> {
-		if !entry.mode().is_blob() {
-			return Err(DeckError::InvalidEntry);
-		}
-
-		let blob = self.backing_vcs.find_blob(entry.id())?;
-		let content = String::from_utf8(blob.data.clone())
-			.map_err(|_| DeckError::InvalidUtf8(self.backing_vcs.workdir().unwrap().to_path_buf()))?;
+	pub fn read_file_content(&self, entry: &BEntry) -> Result<String, DeckError> {
+		// Retrieve the entries binary representation from the VCS and serialize as UTF8
+		let binary_blob = self.backing_vcs.find_blob(entry.0.id())?;
+		let content = String::from_utf8(binary_blob.data.clone()).map_err(|_| {
+			DeckError::InvalidUtf8(
+				self.backing_vcs.workdir().expect("Worktree should be checked out").into(),
+			)
+		})?;
 		Ok(content)
 	}
 
 	#[instrument(skip(self))]
 	pub fn generate_note_uuids(&self, target: (Entry, Commit)) -> Result<Vec<Uuid>, DeckError> {
 		let (entry, commit) = target;
+
+		let entry = BEntry::new(&entry)?;
 		let author = commit.author().unwrap_or_default(); // Just ignore if non-existent, although reasonably impossible I think haha
 		let host_uuid =
 			uuid_generator::create_host_uuid(author.name.to_string(), commit.time()?.seconds);
