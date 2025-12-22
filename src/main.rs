@@ -1,8 +1,9 @@
 use std::{borrow::Cow, fs};
 
-use eyre::{Context, Result};
-use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::Note, note_methods::Identifiable}};
+use eyre::{Context, Result, eyre};
+use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
 use fs_err::write;
+use gix::{Commit, object::tree::Entry};
 use opentelemetry::trace::{Tracer, TracerProvider as _};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_stdout::SpanExporter;
@@ -44,54 +45,7 @@ fn main() -> Result<()> {
 	// the token of trade
 	let history = deck.get_file_history("index.flash").wrap_err("Failed to get file history")?;
 
-	// TODO: Pre-allocate, possibly switching away from Vecs altogether if
-	// pre-parsing the final proves to be worth it?
-	let mut last_cards = Vec::new();
-	let mut static_cards = Vec::new();
-
-	for (point, (active_entry, active_commit)) in history.iter().enumerate() {
-		let content = deck
-			.read_file_content(&(active_entry).try_into()?)
-			.wrap_err("Failed to read file content")?;
-
-		// Parse and immediately extract owned data
-		let active_cards: Vec<Note> = deck
-			.parse_cards(&content)
-			.wrap_err("Failed to parse cards from history")?
-			.into_iter()
-			// Hard copy for ownership concerns
-			.map(|note| Note {
-				fields: note.fields,
-				model: Cow::Owned(note.model.into_owned()),
-				tags: note.tags,
-			})
-			.collect();
-
-		if point == 0 {
-			// Generate initial set of UUIDs
-			let uuids = deck
-				.generate_note_uuids((active_entry.clone(), active_commit.clone()))
-				.wrap_err("Failed to generate UUIDs")?;
-
-			static_cards =
-				active_cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect();
-
-			last_cards = active_cards;
-			continue;
-		}
-
-		// It might be that a change was made but nothing of note happened, like a misc.
-		// newline, check for this.
-		if let Some(changes) =
-			determine_changes(&last_cards, &active_cards).wrap_err("Failed to determine changes")?
-		{
-			// Assuming resolve_uuids mutates static_cards in place or returns new value
-			// If it returns a new value:
-			resolve_changes(&changes, &mut static_cards, Uuid::default());
-		}
-
-		last_cards = active_cards;
-	}
+	let static_cards = process_card_history(&deck, &history)?;
 
 	// Done with history
 	drop(history);
@@ -106,4 +60,83 @@ fn main() -> Result<()> {
 
 	info!("Deck parsing completed");
 	Ok(())
+}
+
+// Extract card reading and parsing into a function
+fn read_and_parse_cards<'a>(deck: &Deck, entry: &Entry) -> Result<Vec<Note<'a>>> {
+	let content =
+		deck.read_file_content(&entry.try_into()?).wrap_err("Failed to read file content")?;
+
+	// Parse and immediately extract owned data
+	Ok(
+		deck.parse_cards(&content)
+        .wrap_err("Failed to parse cards from history")?
+        .into_iter()
+        // Hard copy for ownership concerns
+        .map(|note| Note {
+            fields: note.fields,
+            model: Cow::Owned(note.model.into_owned()),
+            tags: note.tags,
+        })
+        .collect(),
+	)
+}
+
+// Initialize the first state with UUIDs
+fn initialize_cards<'a, 'b>(
+	deck: &Deck,
+	entry: &Entry,
+	commit: &Commit,
+	cards: &'b [Note<'a>],
+) -> Result<Vec<Identified<Note<'a>>>> {
+	// Generate initial set of UUIDs
+	let uuids = deck
+		.generate_note_uuids((entry.clone(), commit.clone()))
+		.wrap_err("Failed to generate UUIDs")?;
+
+	Ok(cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect())
+}
+
+// Process a single history point
+fn process_history_point(
+	last_cards: &[Note],
+	current_cards: &[Note],
+	static_cards: &mut Vec<Identified<Note>>,
+) -> Result<()> {
+	// It might be that a change was made but nothing of note happened, like a misc.
+	// newline, check for this.
+	if let Some(changes) =
+		determine_changes(last_cards, current_cards).wrap_err("Failed to determine changes")?
+	{
+		// Assuming resolve_uuids mutates static_cards in place or returns new value
+		// If it returns a new value:
+		resolve_changes(&changes, static_cards, Uuid::default());
+	}
+	Ok(())
+}
+
+// Main processing logic
+fn process_card_history<'a>(
+	deck: &Deck,
+	history: &[(Entry, Commit)],
+) -> Result<Vec<Identified<Note<'a>>>> {
+	// TODO: Pre-allocate, possibly switching away from Vecs altogether if
+	// pre-parsing the final proves to be worth it?
+	let mut history_iter = history.iter();
+
+	// Handle first entry separately
+	let (first_entry, first_commit) = history_iter.next().ok_or_else(|| eyre!("History is empty"))?;
+
+	let first_cards = read_and_parse_cards(deck, first_entry)?;
+	let mut static_cards = initialize_cards(deck, first_entry, first_commit, &first_cards)?;
+	let mut last_cards = first_cards;
+
+	// Process remaining entries
+	for (entry, _commit) in history_iter {
+		let current_cards = read_and_parse_cards(deck, entry)?;
+		process_history_point(&last_cards, &current_cards, &mut static_cards)?;
+		last_cards = current_cards;
+	}
+
+	Ok(static_cards)
 }
