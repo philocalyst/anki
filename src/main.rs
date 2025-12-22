@@ -97,8 +97,8 @@ fn initialize_cards<'a, 'b>(
 	Ok(cards.iter().zip(uuids).map(|(card, id)| card.clone().identified(id)).collect())
 }
 
-// Process a single history point
-fn process_history_point(
+/// Interpret the passing of a cycle
+fn process_cycle(
 	last_cards: &[Note],
 	current_cards: &[Note],
 	static_cards: &mut Vec<Identified<Note>>,
@@ -120,23 +120,27 @@ fn process_card_history<'a>(
 	deck: &Deck,
 	history: &[(Entry, Commit)],
 ) -> Result<Vec<Identified<Note<'a>>>> {
-	// TODO: Pre-allocate, possibly switching away from Vecs altogether if
-	// pre-parsing the final proves to be worth it?
 	let mut history_iter = history.iter();
 
 	// Handle first entry separately
 	let (first_entry, first_commit) = history_iter.next().ok_or_else(|| eyre!("History is empty"))?;
 
 	let first_cards = read_and_parse_cards(deck, first_entry)?;
-	let mut static_cards = initialize_cards(deck, first_entry, first_commit, &first_cards)?;
-	let mut last_cards = first_cards;
+	let mut elder_cards = initialize_cards(deck, first_entry, first_commit, &first_cards)?;
+
+	// Blankly initalize, as we immeidately overwrite
+	let mut bygone_cards = Vec::with_capacity(first_cards.len());
 
 	// Process remaining entries
 	for (entry, _commit) in history_iter {
-		let current_cards = read_and_parse_cards(deck, entry)?;
-		process_history_point(&last_cards, &current_cards, &mut static_cards)?;
-		last_cards = current_cards;
+		let cards_of_the_day = read_and_parse_cards(deck, entry)?;
+
+		// Make a diff of the changes and update the final cards appropriately
+		process_cycle(&bygone_cards, &cards_of_the_day, &mut elder_cards)?;
+
+		// Cycle complete, the once-new cards lose their youth.
+		bygone_cards = cards_of_the_day;
 	}
 
-	Ok(static_cards)
+	Ok(elder_cards)
 }
