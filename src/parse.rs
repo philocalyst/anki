@@ -1,6 +1,7 @@
-use std::{collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
+use std::{collections::{HashMap, HashSet}, fmt, fs, path::{Path, PathBuf}};
 
-use chumsky::{input::Emitter, prelude::*};
+use chumsky::{input::{Emitter, ValueInput}, prelude::*};
+use logos::Logos;
 
 use crate::types::{note::{Cloze, Note, NoteField, NoteModel, TextElement}, parser::FlashItem};
 
@@ -58,8 +59,7 @@ impl ImportExpander {
 			}
 		}
 
-		// Remove from visited when done (allows importing same file in different
-		// branches)
+		// Remove from visited when done
 		self.visited.remove(&canonical);
 
 		Ok(result)
@@ -76,6 +76,83 @@ impl ImportExpander {
 }
 
 type Span = SimpleSpan;
+
+// ----------------------------------------------------------------------------
+// Lexer
+// ----------------------------------------------------------------------------
+
+#[derive(Logos, Clone, Debug, PartialEq)]
+pub enum Token<'a> {
+	#[token("=")]
+	Eq,
+	#[token(":")]
+	Colon,
+	#[token("[")]
+	LBracket,
+	#[token("]")]
+	RBracket,
+	#[token("{")]
+	LBrace,
+	#[token("}")]
+	RBrace,
+	#[token("|")]
+	Pipe,
+	#[token(",")]
+	Comma,
+
+	#[token("alias")]
+	KwAlias,
+	#[token("to")]
+	KwTo,
+
+	#[token("\n")]
+	Newline,
+
+	// We capture whitespace explicitly to preserve formatting in text fields.
+	// Structural whitespace (indentation, etc.) can be ignored by the parser
+	// where appropriate.
+	#[regex(r"[ \t]+")]
+	WS(&'a str),
+
+	// Matches generic text: sequences of chars that aren't delimiters or control chars.
+	#[regex(r"[^ \t\n:=\[\]{},|]+")]
+	Text(&'a str),
+
+	// Comments start with // and go to end of line (but do not consume the newline)
+	// Comments start with // and go to end of line (but do not consume the newline)
+	// Using [^\n]* ensures it stops at the newline and doesn't backtrack or scan ahead.
+	#[regex(r"//[^\n]*", allow_greedy = true)]
+	Comment(&'a str),
+
+	// We manually define an Error variant to handle Logos errors in the stream
+	Error,
+}
+
+impl fmt::Display for Token<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Token::Eq => write!(f, "="),
+			Token::Colon => write!(f, ":"),
+			Token::LBracket => write!(f, "["),
+			Token::RBracket => write!(f, "]"),
+			Token::LBrace => write!(f, "{{"),
+			Token::RBrace => write!(f, "}}"),
+			Token::Pipe => write!(f, "|"),
+			Token::Comma => write!(f, ","),
+			Token::KwAlias => write!(f, "alias"),
+			Token::KwTo => write!(f, "to"),
+			Token::Newline => write!(f, "\\n"),
+			Token::WS(s) => write!(f, "WS({:?})", s),
+			Token::Text(s) => write!(f, "{}", s),
+			Token::Comment(_) => write!(f, "//..."),
+			Token::Error => write!(f, "<Error>"),
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Builder State
+// ----------------------------------------------------------------------------
 
 /// State machine for building notes from parsed items
 #[derive(Default)]
@@ -126,9 +203,6 @@ impl<'m> NoteBuilder<'m> {
 
 	fn add_alias(&mut self, from: String, to: String) {
 		if self.current_model.is_some() {
-			// Inserting with the key of to, as during resolution time, what's being
-			// searched is the to case (an alias within the flash file), in an attempt to
-			// find what it's linked to
 			self.aliases.insert(to, from);
 		}
 	}
@@ -138,7 +212,7 @@ impl<'m> NoteBuilder<'m> {
 		name: String,
 		content: Vec<TextElement>,
 		span: Span,
-		emitter: &mut Emitter<Rich<char>>,
+		emitter: &mut Emitter<Rich<Token>>,
 	) {
 		let resolved_name = self.resolve_field_name(&name);
 
@@ -160,7 +234,7 @@ impl<'m> NoteBuilder<'m> {
 		model: &NoteModel,
 		field_name: &str,
 		span: Span,
-		emitter: &mut Emitter<Rich<char>>,
+		emitter: &mut Emitter<Rich<Token>>,
 	) {
 		let available = model.fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
 
@@ -214,7 +288,7 @@ fn process_item<'m>(
 	span: Span,
 	builder: &mut NoteBuilder<'m>,
 	available_models: &'m [NoteModel],
-	emitter: &mut Emitter<Rich<char>>,
+	emitter: &mut Emitter<Rich<Token>>,
 ) {
 	match item {
 		FlashItem::NoteModel(name) => {
@@ -224,121 +298,170 @@ fn process_item<'m>(
 			}
 			builder.switch_model(model);
 		}
-
 		FlashItem::Alias { from, to } => {
 			builder.add_alias(from, to);
 		}
-
 		FlashItem::Tags(tags) => {
 			builder.set_tags(tags);
 		}
-
 		FlashItem::Field { name, content } => {
 			builder.validate_and_add_field(name, content, span, emitter);
 		}
-
 		FlashItem::Comment(_) => {
 			// Comments are ignored
 		}
-
 		FlashItem::BlankLine => {
 			builder.finalize_note();
 		}
 	}
 }
 
-/// Main parser entry point
-pub fn flash<'a>(
-	available_models: &'a [NoteModel],
-) -> impl Parser<'a, &'a str, Vec<Note<'a>>, extra::Err<Rich<'a, char>>> + Clone {
-	// Inline whitespace (spaces and tabs only; excludes newlines)
-	let ws = one_of(" \t").repeated().ignored();
+// ----------------------------------------------------------------------------
+// Parser
+// ----------------------------------------------------------------------------
 
-	// A line can end with a newline or the end of the input
-	let eol = text::newline().or(end());
-	let line_ending = ws.then_ignore(eol);
+/// Main parser entry point expecting a token stream
+pub fn flash<'tokens, 'src: 'tokens, I>(
+	available_models: &'tokens [NoteModel],
+) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
+{
+	// Utilities
+	// Match inline whitespace or the explicit ignore-case for Eq
+	let ws = just(Token::Eq).ignore_then(empty()).or(select! {
+			Token::WS(_) => (),
+	});
 
-	// "= Model Name =" line
-	let note_model = just('=')
-		.ignore_then(none_of('=').repeated().collect::<String>())
-		.then_ignore(just('='))
+	// Helper for Identifiers.
+	// We accept `Text` or Keywords (e.g. if someone names a field "alias")
+	let ident = select! {
+			Token::Text(s) => s.to_string(),
+			Token::KwAlias => "alias".to_string(),
+			Token::KwTo => "to".to_string(),
+	};
+
+	// End of Line: A newline token OR the actual end of input.
+	// We use .ignored() on the token to match the () output of end().
+	let eol = just(Token::Newline).ignored().or(end());
+	let line_ending = ws.clone().repeated().ignore_then(eol);
+
+	// "= Model Name ="
+	// We need to reconstruct the model name from potentially multiple text/ws
+	// tokens
+	let model_name_content = select! {
+			Token::Text(s) => s,
+			Token::WS(s) => s,
+	}
+	.repeated()
+	.collect::<Vec<_>>()
+	.map(|v| v.concat());
+
+	let note_model = just(Token::Eq)
+		.ignore_then(model_name_content)
+		.then_ignore(just(Token::Eq))
 		.map(|name| FlashItem::NoteModel(name.trim().to_string()))
-		.then_ignore(line_ending);
+		.then_ignore(line_ending.clone());
 
 	// "alias <from> to <to>"
-	let identifier = none_of([' ', '\t', '\n', ':']).repeated().at_least(1).collect::<String>();
-
-	let alias = text::keyword("alias")
-		.ignore_then(ws)
-		.ignore_then(identifier)
-		.then_ignore(ws)
-		.then_ignore(text::keyword("to"))
-		.then_ignore(ws)
-		.then(identifier)
+	let alias = just(Token::KwAlias)
+		.ignore_then(ws.clone().repeated())
+		.ignore_then(ident)
+		.then_ignore(ws.clone().repeated())
+		.then_ignore(just(Token::KwTo))
+		.then_ignore(ws.clone().repeated())
+		.then(ident)
 		.map(|(to, from)| FlashItem::Alias { from, to })
-		.then_ignore(line_ending);
+		.then_ignore(line_ending.clone());
 
-	// Cloze parsing
-	let cloze_content = none_of(['|', '}', '\n'])
-		.repeated()
-		.at_least(1)
-		.collect::<String>()
-		.map(|s| s.trim().to_string());
+	// Clozes: {Answer|Hint} or {Answer}
+	// Content inside clozes is Text/WS/Keywords
+	let text_or_ws = select! {
+			Token::Text(s) => s,
+			Token::WS(s) => s,
+			Token::KwAlias => "alias",
+			Token::KwTo => "to",
+			Token::Comma => ",",
+			Token::Colon => ":",
+	};
 
-	let cloze_hint = just('|').ignore_then(cloze_content).or_not();
+	let cloze_part = text_or_ws.repeated().at_least(1).collect::<Vec<_>>().map(|v| v.concat());
 
-	let cloze = just('{')
-		.ignore_then(cloze_content)
+	let cloze_hint =
+		just(Token::Pipe).ignore_then(cloze_part.clone()).map(|s| s.trim().to_string()).or_not();
+
+	let cloze = just(Token::LBrace)
+		.ignore_then(cloze_part.clone().map(|s| s.trim().to_string()))
 		.then(cloze_hint)
-		.then_ignore(just('}'))
+		.then_ignore(just(Token::RBrace))
 		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
 
-	// [tag1, tag2, ...]
-	let tag =
-		none_of(",[]\n").repeated().at_least(1).collect::<String>().map(|s| s.trim().to_string());
+	// Tags: [tag1, tag2]
+	// Tags cannot contain newlines or brackets
+	let tag_content = select! {
+			Token::Text(s) => s,
+			Token::WS(s) => s,
+			Token::KwAlias => "alias",
+			Token::KwTo => "to",
+	}
+	.repeated()
+	.at_least(1)
+	.collect::<Vec<_>>()
+	.map(|v| v.concat().trim().to_string());
 
-	let tags = tag
-		.separated_by(just(',').padded())
+	let tags = tag_content
+		.separated_by(just(Token::Comma))
 		.allow_trailing()
 		.collect::<Vec<_>>()
-		.delimited_by(just('['), just(']'))
+		.delimited_by(just(Token::LBracket), just(Token::RBracket))
 		.map(FlashItem::Tags)
-		.then_ignore(line_ending);
+		.then_ignore(line_ending.clone());
 
-	// Field content (text and cloze deletions)
-	let regular_text =
-		none_of(['{', '#', '\n']).repeated().at_least(1).collect::<String>().map(TextElement::Text);
+	// Field content
+	// We must accept anything until EOL that isn't a cloze start
+	let content_text = select! {
+			Token::Text(s) => s.to_string(),
+			Token::WS(s) => s.to_string(),
+			Token::KwAlias => "alias".to_string(),
+			Token::KwTo => "to".to_string(),
+			Token::Comma => ",".to_string(),
+			Token::Eq => "=".to_string(),
+			Token::LBracket => "[".to_string(),
+			Token::RBracket => "]".to_string(),
+			Token::Colon => ":".to_string(),
+	}
+	.map(TextElement::Text);
 
-	let content_element = cloze.or(regular_text);
+	let content_element = cloze.or(content_text);
 
 	let content = content_element
 		.repeated()
 		.collect::<Vec<TextElement>>()
 		.validate(|elements, _span, _emitter| merge_adjacent_text(elements));
 
-	// Field declaration: "FieldName: content"
-	let field_name = text::ident().map(|s: &str| s.to_string()).then_ignore(just(':'));
+	// Field Declaration: "Name: Content"
+	let field_name = ident.then_ignore(just(Token::Colon));
 
 	let field_pair = field_name
-		.then_ignore(ws)
+		.then_ignore(ws.repeated())
 		.then(content)
 		.map(|(name, content)| FlashItem::Field { name, content })
-		.then_ignore(line_ending);
+		.then_ignore(line_ending.clone());
 
-	// Comment line: "// comment text"
-	let comment = just("//")
-		.ignore_then(none_of('\n').repeated().collect::<String>())
-		.map(FlashItem::Comment)
-		.then_ignore(line_ending);
+	// Comments
+	let comment = select! {
+			Token::Comment(c) => c
+	}
+	.map(|s| FlashItem::Comment(s.to_string()))
+	.then_ignore(line_ending);
 
-	// A blank line is now just a newline that isn't part of another item's ending
-	let blank_line = text::newline().to(FlashItem::BlankLine);
+	// Blank line
+	// Multiple newlines produce blank line items
+	let blank_line = just(Token::Newline).to(FlashItem::BlankLine);
 
-	// A single item in the input. Order matters.
 	let item = choice((note_model, alias, tags, field_pair, comment, blank_line))
 		.map_with(|item, e| (item, e.span()));
 
-	// Parse all items and build notes
 	item.repeated().collect::<Vec<(FlashItem, Span)>>().then_ignore(end()).validate(
 		move |items, _span, mut emitter| {
 			let mut builder = NoteBuilder::default();
