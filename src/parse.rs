@@ -105,7 +105,6 @@ pub enum Token<'a> {
 	Pipe,
 	
 	#[token(",")]
-	
 	Comma,
 	
 	#[token("alias")]
@@ -121,11 +120,9 @@ pub enum Token<'a> {
 	WS(&'a str),
 	
 	#[regex(r"[^ \t\n:=\[\]{},|]+")]
-	
 	Text(&'a str),
 	
 	#[regex(r"//[^\n]*", allow_greedy = true)]
-	
 	Comment(&'a str),
 	
 	Error,
@@ -272,53 +269,60 @@ where
 		.labelled("cloze")
 }
 
-	fn validate_and_add_field(
-		&mut self,
-		name: String,
-		content: Vec<TextElement>,
-		span: Span,
-		emitter: &mut Emitter<Rich<Token>>,
-	) {
-		let resolved_name = self.resolve_field_name(&name);
+/// Parse field content (text and clozes)
+fn field_content<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, Vec<TextElement>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	let text_chars = select! {
+		Token::Text(s) => s,
+		Token::WS(s) => s,
+		Token::KwAlias => "alias",
+		Token::KwTo => "to",
+		Token::Comma => ",",
+		Token::Eq => "=",
+		Token::LBracket => "[",
+		Token::RBracket => "]",
+		Token::Colon => ":",
+	};
 
-		if let Some(model) = self.current_model {
-			if !Self::field_exists_in_model(model, &resolved_name) {
-				Self::emit_unknown_field_error(model, &name, span, emitter);
-				return;
-			}
-		}
+	let content_text = text_chars.map(|s: &str| TextElement::Text(s.to_string()));
+	let content_element = cloze().or(content_text);
 
-		self.fields.push(NoteField { name: resolved_name, content });
-	}
-
-	fn field_exists_in_model(model: &NoteModel, field_name: &str) -> bool {
-		model.fields.iter().any(|f| f.name == field_name)
-	}
-
-	fn emit_unknown_field_error(
-		model: &NoteModel,
-		field_name: &str,
-		span: Span,
-		emitter: &mut Emitter<Rich<Token>>,
-	) {
-		let available = model.fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
-
-		emitter.emit(Rich::custom(
-			span,
-			format!(
-				"Unknown field '{}' for model '{}'. Available: [{}]",
-				field_name, model.name, available
-			),
-		));
-	}
-
-	fn into_notes(mut self) -> Vec<Note<'m>> {
-		self.finalize_note();
-		self.notes
-	}
+	content_element.repeated().collect::<Vec<_>>().map(merge_adjacent_text)
 }
 
-/// Merges adjacent Text elements into single elements
+/// Parse field: Name: Content
+fn field_declaration<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, NoteField, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	ident()
+		.map(|s| s.to_string())
+		.then_ignore(just(Token::Colon))
+		.then_ignore(ws().repeated())
+		.then(field_content())
+		.map(|(name, content)| NoteField { name, content })
+		.then_ignore(line_ending())
+		.labelled("field")
+}
+
+/// Parse comment line
+fn comment_line<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	select! { Token::Comment(_) => () }.then_ignore(line_ending()).labelled("comment")
+}
+
+// ----------------------------------------------------------------------------
+// Note Builder
+// ----------------------------------------------------------------------------
+
+/// Merges adjacent Text elements to reduce fragmentation
 fn merge_adjacent_text(elements: Vec<TextElement>) -> Vec<TextElement> {
 	let mut merged = Vec::new();
 	let mut text_buffer = String::new();
@@ -342,298 +346,91 @@ fn merge_adjacent_text(elements: Vec<TextElement>) -> Vec<TextElement> {
 	merged
 }
 
-/// Finds a model by name in the available models list
-fn find_model<'a>(available_models: &'a [NoteModel], name: &str) -> Option<&'a NoteModel> {
-	available_models.iter().find(|m| m.name == name)
+/// Build a note from parsed components
+struct NoteComponents<'m> {
+	model:   &'m NoteModel,
+	aliases: HashMap<String, String>,
+	tags:    Vec<String>,
+	fields:  Vec<NoteField>,
 }
 
-/// Processes a single parsed item and updates the builder state
-fn process_item<'m>(
-	item: FlashItem,
-	span: Span,
-	builder: &mut NoteBuilder<'m>,
-	available_models: &'m [NoteModel],
-	emitter: &mut Emitter<Rich<Token>>,
-) {
-	match item {
-		FlashItem::NoteModel(name) => {
-			let model = find_model(available_models, &name);
-			if model.is_none() {
-				emitter.emit(Rich::custom(span, format!("Unknown note model '{}'", name)));
+impl<'m> NoteComponents<'m> {
+	fn into_note(mut self) -> Note<'m> {
+		// Resolve aliases in fields
+		for field in &mut self.fields {
+			if let Some(target) = self.aliases.get(&field.name) {
+				field.name = target.clone();
 			}
-			builder.switch_model(model);
 		}
-		FlashItem::Alias { from, to } => {
-			builder.add_alias(from, to);
-		}
-		FlashItem::Tags(tags) => {
-			builder.set_tags(tags);
-		}
-		FlashItem::Field { name, content } => {
-			builder.validate_and_add_field(name, content, span, emitter);
-		}
-		FlashItem::Comment(_) => {
-			// Comments are ignored
-		}
-		FlashItem::BlankLine => {
-			builder.finalize_note();
-		}
+
+		Note { fields: self.fields, model: std::borrow::Cow::Borrowed(self.model), tags: self.tags }
 	}
 }
 
 // ----------------------------------------------------------------------------
-// Parser
+// Main Parser
 // ----------------------------------------------------------------------------
-
-use thiserror::Error;
-
-// Define the custom semantic errors
-#[derive(Debug, Clone, PartialEq, Error)]
-pub enum FlashError {
-	#[error("Unknown note model '{0}'. Available models: {1}")]
-	UnknownModel(String, String),
-
-	#[error("Field '{field}' is not defined in model '{model}'")]
-	UnknownField { model: String, field: String },
-
-	#[error(
-		"Cannot define an alias for '{alias}' because '{target}' does not exist in model '{model}'"
-	)]
-	InvalidAliasTarget { model: String, alias: String, target: String },
-
-	#[error("No model specified. Please define a model using '= ModelName =' before adding fields.")]
-	ModelNotSpecified,
-
-	#[error("Duplicate field '{0}' defined for this note.")]
-	DuplicateField(String),
-}
-
-// Ensure the Error type is compatible with specific span types if necessary,
-// usually handled by Rich::custom which requires ToString/Display.
 
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
-) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, SimpleSpan>>>
-+ Clone
+) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	// Utilities
-	let ws = just(Token::Eq).ignore_then(empty()).or(select! {
-			Token::WS(_) => (),
-	});
+	let blank_line = just(Token::Newline);
 
-	let ident = select! {
-			Token::Text(s) => s.to_string(),
-			Token::KwAlias => "alias".to_string(),
-			Token::KwTo => "to".to_string(),
-	};
+	let note_block = model_declaration()
+        .validate(move |model_name, extra, emitter| {
+            let span = extra.span(); 
+            available_models
+                .iter()
+                .find(|m| m.name == model_name)
+                .map_or_else(|| {
+                    let available = available_models
+                        .iter()
+                        .map(|m| m.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    emitter.emit(Rich::custom(span, format!("Unknown model '{}'. Available: [{}]", model_name, available)));
+                    None
+                }, Some)
+        })
+        .then(alias_declaration().repeated().collect::<Vec<_>>())
+        .then(tags_declaration().or_not())
+        .then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
+        .validate(move |(((model_opt, aliases), tags), fields), extra, emitter| {
+            let model = model_opt?; 
+            let span = extra.span(); 
 
-	let eol = just(Token::Newline).ignored().or(end());
-	let line_ending = ws.clone().repeated().ignore_then(eol);
+            let alias_map: HashMap<_, _> = aliases.into_iter().collect();
+            
+            for field in &fields {
+                let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+                if !model.fields.iter().any(|f| &f.name == resolved_name) {
+                    emitter.emit(Rich::custom(
+                        span,
+                        format!("Field '{}' not found in model '{}'", field.name, model.name),
+                    ));
+                }
+            }
 
-	// "= Model Name ="
-	let model_name_content = select! {
-			Token::Text(s) => s,
-			Token::WS(s) => s,
-	}
-	.repeated()
-	.collect::<Vec<_>>()
-	.map(|v| v.concat());
+            Some(NoteComponents {
+                model,
+                aliases: alias_map,
+                tags: tags.unwrap_or_default(),
+                fields,
+            }
+            .into_note())
+        })
+        // Fix: Use try_map to unwrap the Option and filter out None values
+        .try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
+        .then_ignore(blank_line.clone().ignored().or(end()))
+        .recover_with(skip_then_retry_until(any().ignored(), blank_line.clone().ignored()));
 
-	let note_model = just(Token::Eq)
-		.ignore_then(model_name_content)
-		.then_ignore(just(Token::Eq))
-		.map(|name| FlashItem::NoteModel(name.trim().to_string()))
-		.then_ignore(line_ending.clone());
-
-	// "alias <from> to <to>"
-	let alias = just(Token::KwAlias)
-		.ignore_then(ws.clone().repeated())
-		.ignore_then(ident)
-		.then_ignore(ws.clone().repeated())
-		.then_ignore(just(Token::KwTo))
-		.then_ignore(ws.clone().repeated())
-		.then(ident)
-		.map(|(from, to)| FlashItem::Alias { from, to })
-		.then_ignore(line_ending.clone());
-
-	// Clozes: {Answer|Hint}
-	let text_or_ws = select! {
-			Token::Text(s) => s,
-			Token::WS(s) => s,
-			Token::KwAlias => "alias",
-			Token::KwTo => "to",
-			Token::Comma => ",",
-			Token::Colon => ":",
-	};
-
-	let cloze_part = text_or_ws.repeated().at_least(1).collect::<Vec<_>>().map(|v| v.concat());
-
-	let cloze_hint =
-		just(Token::Pipe).ignore_then(cloze_part.clone()).map(|s| s.trim().to_string()).or_not();
-
-	let cloze = just(Token::LBrace)
-		.ignore_then(cloze_part.clone().map(|s| s.trim().to_string()))
-		.then(cloze_hint)
-		.then_ignore(just(Token::RBrace))
-		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
-
-	// Tags: [tag1, tag2]
-	let tag_content = select! {
-			Token::Text(s) => s,
-			Token::WS(s) => s,
-			Token::KwAlias => "alias",
-			Token::KwTo => "to",
-	}
-	.repeated()
-	.at_least(1)
-	.collect::<Vec<_>>()
-	.map(|v| v.concat().trim().to_string());
-
-	let tags = tag_content
-		.separated_by(just(Token::Comma))
-		.allow_trailing()
-		.collect::<Vec<_>>()
-		.delimited_by(just(Token::LBracket), just(Token::RBracket))
-		.map(FlashItem::Tags)
-		.then_ignore(line_ending.clone());
-
-	// Field Content
-	let content_text = select! {
-			Token::Text(s) => s.to_string(),
-			Token::WS(s) => s.to_string(),
-			Token::KwAlias => "alias".to_string(),
-			Token::KwTo => "to".to_string(),
-			Token::Comma => ",".to_string(),
-			Token::Eq => "=".to_string(),
-			Token::LBracket => "[".to_string(),
-			Token::RBracket => "]".to_string(),
-			Token::Colon => ":".to_string(),
-	}
-	.map(TextElement::Text);
-
-	let content_element = cloze.or(content_text);
-
-	// Merge adjacent text elements to avoid fragmentation
-	let content = content_element.repeated().collect::<Vec<TextElement>>().map(|elements| {
-		let mut merged = Vec::new();
-		let mut current_text = String::new();
-
-		for el in elements {
-			match el {
-				TextElement::Text(t) => current_text.push_str(&t),
-				other => {
-					if !current_text.is_empty() {
-						merged.push(TextElement::Text(std::mem::take(&mut current_text)));
-					}
-					merged.push(other);
-				}
-			}
-		}
-		if !current_text.is_empty() {
-			merged.push(TextElement::Text(current_text));
-		}
-		merged
-	});
-
-	// "Name: Content"
-	let field_name = ident.then_ignore(just(Token::Colon));
-
-	let field_pair = field_name
-		.then_ignore(ws.clone().repeated())
-		.then(content)
-		.map(|(name, content)| FlashItem::Field { name, content })
-		.then_ignore(line_ending.clone());
-
-	let comment = select! { Token::Comment(c) => c }
-		.map(|s| FlashItem::Comment(s.to_string()))
-		.then_ignore(line_ending);
-
-	let blank_line = just(Token::Newline).to(FlashItem::BlankLine);
-
-	// Combine all items
-	let item = choice((note_model, alias, tags, field_pair, comment, blank_line))
-		.map_with(|item, e| (item, e.span()));
-
-	// Validation Logic
-	item.repeated().collect::<Vec<(FlashItem, SimpleSpan)>>().then_ignore(end()).validate(
-		move |items, _span, mut emitter| {
-			let mut builder = NoteBuilder::default();
-
-			// State tracking for validation
-			let mut current_model: Option<&NoteModel> = None;
-			// Track fields defined in the current note to detect duplicates
-			let mut defined_fields = std::collections::HashSet::new();
-
-			for (item, item_span) in items {
-				match item {
-					FlashItem::NoteModel(name) => {
-						// 1. Validate that the model exists
-						if let Some(model) = available_models.iter().find(|m| m.name == name) {
-							current_model = Some(model);
-							// Flush previous note and start new one
-							builder.current_model = Some(model);
-							defined_fields.clear();
-						} else {
-							// Collect available names for the error message
-							let available =
-								available_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(", ");
-
-							emitter.emit(Rich::custom(item_span, FlashError::UnknownModel(name, available)));
-							// Reset state to prevent cascading errors for fields
-							current_model = None;
-							defined_fields.clear();
-						}
-					}
-					FlashItem::Field { name, content } => {
-						// 2. Validate that a model is selected
-						if let Some(model) = current_model {
-							// 3. Validate that the field exists in the model
-							// (or is a valid alias defined previously - assuming builder handles alias
-							// resolution or we check aliases here if we tracked them)
-							let is_valid_field =
-								model.fields.iter().any(|f| f.name == name) || builder.has_alias(&name); // Assuming builder tracks aliases
-
-							if is_valid_field {
-								defined_fields.insert(name.clone());
-								builder.add_field(NoteField { name, content });
-							} else {
-								emitter.emit(Rich::custom(item_span, FlashError::UnknownField {
-									model: model.name.clone(),
-									field: name,
-								}));
-							}
-						} else {
-							emitter.emit(Rich::custom(item_span, FlashError::ModelNotSpecified));
-						}
-					}
-					FlashItem::Alias { from, to } => {
-						// 4. Validate Aliases
-						if let Some(model) = current_model {
-							if model.fields.iter().any(|field| field.name == from) {
-								builder.add_alias(from, to);
-							} else {
-								emitter.emit(Rich::custom(item_span, FlashError::InvalidAliasTarget {
-									model:  model.name.clone(),
-									alias:  from,
-									target: to,
-								}));
-							}
-						} else {
-							emitter.emit(Rich::custom(item_span, FlashError::ModelNotSpecified));
-						}
-					}
-					FlashItem::Tags(tags) => {
-						builder.add_tags(tags);
-					}
-					FlashItem::Comment(_) | FlashItem::BlankLine => {
-						// Pass through or ignore
-					}
-				}
-			}
-
-			builder.into_notes()
-		},
-	)
+    note_block
+        .padded_by(comment_line().repeated())
+        .padded_by(blank_line.repeated())
+        .repeated()
+        .collect::<Vec<_>>() // Now this successfully collects into Vec<Note>
+        .then_ignore(end())
 }
