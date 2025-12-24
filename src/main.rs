@@ -1,7 +1,7 @@
-use std::{borrow::Cow, fs};
+use std::{borrow::Cow, fs, path::{self, Path, PathBuf}};
 
 use eyre::{Context, Result, eyre};
-use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
+use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, parse::ImportExpander, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
 use fs_err::write;
 use gix::{Commit, object::tree::Entry};
 use opentelemetry::trace::{Tracer, TracerProvider as _};
@@ -64,12 +64,18 @@ fn main() -> Result<()> {
 
 // Extract card reading and parsing into a function
 fn read_and_parse_cards<'a>(deck: &Deck, entry: &Entry) -> Result<Vec<Note<'a>>> {
+	let file: PathBuf = PathBuf::from(entry.filename().to_string());
 	let content =
 		deck.read_file_content(&entry.try_into()?).wrap_err("Failed to read file content")?;
 
+	// Expand all imports first
+	let mut expander = ImportExpander::new(file.parent().unwrap_or_else(|| Path::new(".")));
+
+	let expanded_content = expander.expand_file(file).unwrap();
+
 	// Parse and immediately extract owned data
 	Ok(
-		deck.parse_cards(&content)
+		deck.parse_cards(&expanded_content)
         .wrap_err("Failed to parse cards from history")?
         .into_iter()
         // Hard copy for ownership concerns

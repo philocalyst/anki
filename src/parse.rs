@@ -1,8 +1,79 @@
-use std::collections::HashMap;
+use std::{collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 
 use chumsky::{input::Emitter, prelude::*};
 
 use crate::types::{note::{Cloze, Note, NoteField, NoteModel, TextElement}, parser::FlashItem};
+
+/// Preprocessor that expands import statements recursively
+pub struct ImportExpander {
+	/// Track visited files to prevent circular imports
+	visited:  HashSet<PathBuf>,
+	/// Base directory for resolving relative imports
+	base_dir: PathBuf,
+}
+
+impl ImportExpander {
+	pub fn new(base_dir: impl AsRef<Path>) -> Self {
+		Self { visited: HashSet::new(), base_dir: base_dir.as_ref().to_path_buf() }
+	}
+
+	/// Expands all imports in the given content recursively
+	pub fn expand(&mut self, content: &str, current_file: &Path) -> Result<String, String> {
+		// Mark current file as visited
+		let canonical = current_file
+			.canonicalize()
+			.map_err(|e| format!("Cannot resolve path {}: {}", current_file.display(), e))?;
+
+		if !self.visited.insert(canonical.clone()) {
+			return Err(format!("Circular import detected: {}", current_file.display()));
+		}
+
+		let mut result = String::new();
+
+		for line in content.lines() {
+			let trimmed = line.trim();
+
+			// Check for import statement: "import path/to/file.flash"
+			if let Some(import_path) = trimmed.strip_prefix("import ") {
+				let import_path = import_path.trim();
+
+				// Resolve relative to current file's directory
+				let import_file = current_file.parent().unwrap_or(&self.base_dir).join(import_path);
+
+				// Read and recursively expand the imported file
+				let imported_content = fs::read_to_string(&import_file)
+					.map_err(|e| format!("Cannot read import {}: {}", import_file.display(), e))?;
+
+				let expanded = self.expand(&imported_content, &import_file)?;
+				result.push_str(&expanded);
+
+				// Add a blank line to separate imported content
+				if !expanded.ends_with("\n\n") {
+					result.push('\n');
+				}
+			} else {
+				// Regular line - keep as is
+				result.push_str(line);
+				result.push('\n');
+			}
+		}
+
+		// Remove from visited when done (allows importing same file in different
+		// branches)
+		self.visited.remove(&canonical);
+
+		Ok(result)
+	}
+
+	/// Convenience method to expand from a file path
+	pub fn expand_file(&mut self, path: impl AsRef<Path>) -> Result<String, String> {
+		let path = path.as_ref();
+		let content = fs::read_to_string(path)
+			.map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
+
+		self.expand(&content, path)
+	}
+}
 
 type Span = SimpleSpan;
 
