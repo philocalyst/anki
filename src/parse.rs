@@ -197,9 +197,15 @@ impl<'m> NoteBuilder<'m> {
 
 	fn set_tags(&mut self, tags: Vec<String>) { self.tags = tags; }
 
+	fn add_tags(&mut self, tags: Vec<String>) { self.tags.extend(tags); }
+
+	fn add_field(&mut self, field: NoteField) { self.fields.push(field); }
+
 	fn resolve_field_name(&self, name: &str) -> String {
 		self.aliases.get(name).cloned().unwrap_or_else(|| name.to_string())
 	}
+
+	fn has_alias(&self, alias: &str) -> bool { self.aliases.get(alias).is_some() }
 
 	fn add_alias(&mut self, from: String, to: String) {
 		if self.current_model.is_some() {
@@ -320,35 +326,54 @@ fn process_item<'m>(
 // Parser
 // ----------------------------------------------------------------------------
 
-/// Main parser entry point expecting a token stream
+use thiserror::Error;
+
+// Define the custom semantic errors
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum FlashError {
+	#[error("Unknown note model '{0}'. Available models: {1}")]
+	UnknownModel(String, String),
+
+	#[error("Field '{field}' is not defined in model '{model}'")]
+	UnknownField { model: String, field: String },
+
+	#[error(
+		"Cannot define an alias for '{alias}' because '{target}' does not exist in model '{model}'"
+	)]
+	InvalidAliasTarget { model: String, alias: String, target: String },
+
+	#[error("No model specified. Please define a model using '= ModelName =' before adding fields.")]
+	ModelNotSpecified,
+
+	#[error("Duplicate field '{0}' defined for this note.")]
+	DuplicateField(String),
+}
+
+// Ensure the Error type is compatible with specific span types if necessary,
+// usually handled by Rich::custom which requires ToString/Display.
+
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
-) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>>>> + Clone
+) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, SimpleSpan>>>
++ Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
 	// Utilities
-	// Match inline whitespace or the explicit ignore-case for Eq
 	let ws = just(Token::Eq).ignore_then(empty()).or(select! {
 			Token::WS(_) => (),
 	});
 
-	// Helper for Identifiers.
-	// We accept `Text` or Keywords (e.g. if someone names a field "alias")
 	let ident = select! {
 			Token::Text(s) => s.to_string(),
 			Token::KwAlias => "alias".to_string(),
 			Token::KwTo => "to".to_string(),
 	};
 
-	// End of Line: A newline token OR the actual end of input.
-	// We use .ignored() on the token to match the () output of end().
 	let eol = just(Token::Newline).ignored().or(end());
 	let line_ending = ws.clone().repeated().ignore_then(eol);
 
 	// "= Model Name ="
-	// We need to reconstruct the model name from potentially multiple text/ws
-	// tokens
 	let model_name_content = select! {
 			Token::Text(s) => s,
 			Token::WS(s) => s,
@@ -371,11 +396,10 @@ where
 		.then_ignore(just(Token::KwTo))
 		.then_ignore(ws.clone().repeated())
 		.then(ident)
-		.map(|(to, from)| FlashItem::Alias { from, to })
+		.map(|(from, to)| FlashItem::Alias { from, to })
 		.then_ignore(line_ending.clone());
 
-	// Clozes: {Answer|Hint} or {Answer}
-	// Content inside clozes is Text/WS/Keywords
+	// Clozes: {Answer|Hint}
 	let text_or_ws = select! {
 			Token::Text(s) => s,
 			Token::WS(s) => s,
@@ -397,7 +421,6 @@ where
 		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
 
 	// Tags: [tag1, tag2]
-	// Tags cannot contain newlines or brackets
 	let tag_content = select! {
 			Token::Text(s) => s,
 			Token::WS(s) => s,
@@ -417,8 +440,7 @@ where
 		.map(FlashItem::Tags)
 		.then_ignore(line_ending.clone());
 
-	// Field content
-	// We must accept anything until EOL that isn't a cloze start
+	// Field Content
 	let content_text = select! {
 			Token::Text(s) => s.to_string(),
 			Token::WS(s) => s.to_string(),
@@ -434,40 +456,122 @@ where
 
 	let content_element = cloze.or(content_text);
 
-	let content = content_element
-		.repeated()
-		.collect::<Vec<TextElement>>()
-		.validate(|elements, _span, _emitter| merge_adjacent_text(elements));
+	// Merge adjacent text elements to avoid fragmentation
+	let content = content_element.repeated().collect::<Vec<TextElement>>().map(|elements| {
+		let mut merged = Vec::new();
+		let mut current_text = String::new();
 
-	// Field Declaration: "Name: Content"
+		for el in elements {
+			match el {
+				TextElement::Text(t) => current_text.push_str(&t),
+				other => {
+					if !current_text.is_empty() {
+						merged.push(TextElement::Text(std::mem::take(&mut current_text)));
+					}
+					merged.push(other);
+				}
+			}
+		}
+		if !current_text.is_empty() {
+			merged.push(TextElement::Text(current_text));
+		}
+		merged
+	});
+
+	// "Name: Content"
 	let field_name = ident.then_ignore(just(Token::Colon));
 
 	let field_pair = field_name
-		.then_ignore(ws.repeated())
+		.then_ignore(ws.clone().repeated())
 		.then(content)
 		.map(|(name, content)| FlashItem::Field { name, content })
 		.then_ignore(line_ending.clone());
 
-	// Comments
-	let comment = select! {
-			Token::Comment(c) => c
-	}
-	.map(|s| FlashItem::Comment(s.to_string()))
-	.then_ignore(line_ending);
+	let comment = select! { Token::Comment(c) => c }
+		.map(|s| FlashItem::Comment(s.to_string()))
+		.then_ignore(line_ending);
 
-	// Blank line
-	// Multiple newlines produce blank line items
 	let blank_line = just(Token::Newline).to(FlashItem::BlankLine);
 
+	// Combine all items
 	let item = choice((note_model, alias, tags, field_pair, comment, blank_line))
 		.map_with(|item, e| (item, e.span()));
 
-	item.repeated().collect::<Vec<(FlashItem, Span)>>().then_ignore(end()).validate(
+	// Validation Logic
+	item.repeated().collect::<Vec<(FlashItem, SimpleSpan)>>().then_ignore(end()).validate(
 		move |items, _span, mut emitter| {
 			let mut builder = NoteBuilder::default();
 
-			for (item, span) in items {
-				process_item(item, span, &mut builder, available_models, &mut emitter);
+			// State tracking for validation
+			let mut current_model: Option<&NoteModel> = None;
+			// Track fields defined in the current note to detect duplicates
+			let mut defined_fields = std::collections::HashSet::new();
+
+			for (item, item_span) in items {
+				match item {
+					FlashItem::NoteModel(name) => {
+						// 1. Validate that the model exists
+						if let Some(model) = available_models.iter().find(|m| m.name == name) {
+							current_model = Some(model);
+							// Flush previous note and start new one
+							builder.current_model = Some(model);
+							defined_fields.clear();
+						} else {
+							// Collect available names for the error message
+							let available =
+								available_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(", ");
+
+							emitter.emit(Rich::custom(item_span, FlashError::UnknownModel(name, available)));
+							// Reset state to prevent cascading errors for fields
+							current_model = None;
+							defined_fields.clear();
+						}
+					}
+					FlashItem::Field { name, content } => {
+						// 2. Validate that a model is selected
+						if let Some(model) = current_model {
+							// 3. Validate that the field exists in the model
+							// (or is a valid alias defined previously - assuming builder handles alias
+							// resolution or we check aliases here if we tracked them)
+							let is_valid_field =
+								model.fields.iter().any(|f| f.name == name) || builder.has_alias(&name); // Assuming builder tracks aliases
+
+							if is_valid_field {
+								defined_fields.insert(name.clone());
+								builder.add_field(NoteField { name, content });
+							} else {
+								emitter.emit(Rich::custom(item_span, FlashError::UnknownField {
+									model: model.name.clone(),
+									field: name,
+								}));
+							}
+						} else {
+							emitter.emit(Rich::custom(item_span, FlashError::ModelNotSpecified));
+						}
+					}
+					FlashItem::Alias { from, to } => {
+						// 4. Validate Aliases
+						if let Some(model) = current_model {
+							if model.fields.iter().any(|field| field.name == from) {
+								builder.add_alias(from, to);
+							} else {
+								emitter.emit(Rich::custom(item_span, FlashError::InvalidAliasTarget {
+									model:  model.name.clone(),
+									alias:  from,
+									target: to,
+								}));
+							}
+						} else {
+							emitter.emit(Rich::custom(item_span, FlashError::ModelNotSpecified));
+						}
+					}
+					FlashItem::Tags(tags) => {
+						builder.add_tags(tags);
+					}
+					FlashItem::Comment(_) | FlashItem::BlankLine => {
+						// Pass through or ignore
+					}
+				}
 			}
 
 			builder.into_notes()
