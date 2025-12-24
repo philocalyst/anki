@@ -125,6 +125,8 @@ pub enum Token<'a> {
 	#[regex(r"//[^\n]*", allow_greedy = true)]
 	Comment(&'a str),
 
+	Error
+
 }
 
 // Basic Token extractors
@@ -147,6 +149,16 @@ where
 	select! {
 		Token::Alias => "alias",
 		Token::To => "to",
+	}
+}
+
+fn text<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	select! {
+		Token::Text(s) => s,
 	}
 }
 
@@ -198,12 +210,12 @@ where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
 	just(Token::Alias)
-		.ignore_then(ws().repeated())
-		.ignore_then(ident().map(|s| s.to_string()))
+		.ignore_then(ws().repeated().at_least(1))
+		.ignore_then(text().map(|s| s.to_string()))
 		.then_ignore(ws().repeated())
 		.then_ignore(just(Token::To))
 		.then_ignore(ws().repeated())
-		.then(ident().map(|s| s.to_string()))
+		.then(text().map(|s| s.to_string()))
 		.then_ignore(line_ending())
 		.labelled("alias declaration")
 }
