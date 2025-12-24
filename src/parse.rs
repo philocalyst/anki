@@ -129,9 +129,7 @@ pub enum Token<'a> {
 	
 }
 
-// ----------------------------------------------------------------------------
-// Basic Token Extractors
-// ----------------------------------------------------------------------------
+// Basic Token extractors
 
 /// Extract whitespace (including = as special whitespace)
 fn ws<'tokens, 'src: 'tokens, I>()
@@ -142,26 +140,16 @@ where
 	just(Token::Eq).ignore_then(empty()).or(select! { Token::WS(_) => () })
 }
 
-/// Extract identifier-like tokens (Text, alias, to)
+/// Extract identifier-like tokens (alias, to)
 fn ident<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
 	select! {
-		Token::Text(s) => s,
 		Token::KwAlias => "alias",
 		Token::KwTo => "to",
 	}
-}
-
-/// End of line: newline or EOF
-fn eol<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
-where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
-{
-	just(Token::Newline).ignored().or(end())
 }
 
 /// Line ending with optional leading whitespace
@@ -170,7 +158,7 @@ fn line_ending<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	ws().repeated().ignore_then(eol())
+	ws().repeated().ignore_then(end())
 }
 
 // ----------------------------------------------------------------------------
