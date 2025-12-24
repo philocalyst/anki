@@ -1,11 +1,12 @@
 use std::{fs, path::Path};
 
-use chumsky::Parser;
+use chumsky::{Parser, input::Input, span::SimpleSpan};
 use gix::{Commit, Repository, Tree, object::tree::Entry};
+use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::flash, types::{BEntry, crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
+use crate::{deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::{Token, flash}, types::{BEntry, crowd_anki_config::DeckConfig, note::{Identified, Note, NoteModel}}, uuid_generator};
 
 impl<'b> super::Deck<'b> {
 	#[instrument(skip(deck_path))]
@@ -73,7 +74,20 @@ impl<'b> super::Deck<'b> {
 	#[instrument(skip(self))]
 	pub fn parse_cards<'a>(&'a self, content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
 		debug!("Parsing card content");
-		flash(&self.models).parse(content).into_result().map_err(|e| {
+
+		// Create the lexer
+		let token_iter = Token::lexer(content).spanned().map(|(tok, span)| match tok {
+			Ok(t) => (t, span.into()),
+			Err(_) => (Token::Error, span.into()),
+		});
+
+		// Turn the iterator into a Chumsky-compatible stream
+		// We provide a zero-width span at the end of the content for EOI (End Of Input)
+		let eoi = SimpleSpan::from(content.len()..content.len());
+		let token_stream = chumsky::input::Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
+
+		// Parse the stream using the refactored flash parser
+		flash(&self.models).parse(token_stream).into_result().map_err(|e| {
 			let error_string = e.into_iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n");
 			DeckError::Parse(error_string)
 		})

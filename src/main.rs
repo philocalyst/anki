@@ -64,7 +64,8 @@ fn main() -> Result<()> {
 
 // Extract card reading and parsing into a function
 fn read_and_parse_cards<'a>(deck: &Deck, entry: &Entry) -> Result<Vec<Note<'a>>> {
-	let file: PathBuf = PathBuf::from(entry.filename().to_string());
+	let file: PathBuf =
+		deck.backing_vcs.git_dir().parent().unwrap().join(PathBuf::from(entry.filename().to_string()));
 	let content =
 		deck.read_file_content(&entry.try_into()?).wrap_err("Failed to read file content")?;
 
