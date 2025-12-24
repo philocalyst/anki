@@ -78,75 +78,83 @@ impl ImportExpander {
 type Span = SimpleSpan;
 
 // ----------------------------------------------------------------------------
-// Lexer
+// Lexer (unchanged)
 // ----------------------------------------------------------------------------
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 pub enum Token<'a> {
 	#[token("=")]
 	Eq,
+	
 	#[token(":")]
 	Colon,
+	
 	#[token("[")]
 	LBracket,
+	
 	#[token("]")]
 	RBracket,
+	
 	#[token("{")]
 	LBrace,
+	
 	#[token("}")]
 	RBrace,
+	
 	#[token("|")]
 	Pipe,
+	
 	#[token(",")]
+	
 	Comma,
-
+	
 	#[token("alias")]
 	KwAlias,
+	
 	#[token("to")]
 	KwTo,
-
+	
 	#[token("\n")]
 	Newline,
-
-	// We capture whitespace explicitly to preserve formatting in text fields.
-	// Structural whitespace (indentation, etc.) can be ignored by the parser
-	// where appropriate.
+	
 	#[regex(r"[ \t]+")]
 	WS(&'a str),
-
-	// Matches generic text: sequences of chars that aren't delimiters or control chars.
+	
 	#[regex(r"[^ \t\n:=\[\]{},|]+")]
+	
 	Text(&'a str),
-
-	// Comments start with // and go to end of line (but do not consume the newline)
-	// Comments start with // and go to end of line (but do not consume the newline)
-	// Using [^\n]* ensures it stops at the newline and doesn't backtrack or scan ahead.
+	
 	#[regex(r"//[^\n]*", allow_greedy = true)]
+	
 	Comment(&'a str),
-
-	// We manually define an Error variant to handle Logos errors in the stream
+	
 	Error,
+	
 }
 
-impl fmt::Display for Token<'_> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Token::Eq => write!(f, "="),
-			Token::Colon => write!(f, ":"),
-			Token::LBracket => write!(f, "["),
-			Token::RBracket => write!(f, "]"),
-			Token::LBrace => write!(f, "{{"),
-			Token::RBrace => write!(f, "}}"),
-			Token::Pipe => write!(f, "|"),
-			Token::Comma => write!(f, ","),
-			Token::KwAlias => write!(f, "alias"),
-			Token::KwTo => write!(f, "to"),
-			Token::Newline => write!(f, "\\n"),
-			Token::WS(s) => write!(f, "WS({:?})", s),
-			Token::Text(s) => write!(f, "{}", s),
-			Token::Comment(_) => write!(f, "//..."),
-			Token::Error => write!(f, "<Error>"),
-		}
+// ----------------------------------------------------------------------------
+// Basic Token Extractors
+// ----------------------------------------------------------------------------
+
+/// Extract whitespace (including = as special whitespace)
+fn ws<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	just(Token::Eq).ignore_then(empty()).or(select! { Token::WS(_) => () })
+}
+
+/// Extract identifier-like tokens (Text, alias, to)
+fn ident<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	select! {
+		Token::Text(s) => s,
+		Token::KwAlias => "alias",
+		Token::KwTo => "to",
 	}
 }
 
