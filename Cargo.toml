@@ -11,6 +11,7 @@ evalexpr = { path = "./evalexpr", features = ["serde"]}
 eyre = "0.6.12"
 fs-err = "3.1.1"
 gix = "0.74.1"
+logos = "0.16.0"
 opentelemetry = "0.31.0"
 opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = "0.31.0"
