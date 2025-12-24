@@ -108,10 +108,10 @@ pub enum Token<'a> {
 	Comma,
 	
 	#[token("alias")]
-	KwAlias,
+	Alias,
 	
 	#[token("to")]
-	KwTo,
+	To,
 	
 	#[token("\n")]
 	Newline,
@@ -124,32 +124,39 @@ pub enum Token<'a> {
 	
 	#[regex(r"//[^\n]*", allow_greedy = true)]
 	Comment(&'a str),
-	
-	Error,
-	
+
 }
 
 // Basic Token extractors
 
 /// Extract whitespace (including = as special whitespace)
-fn ws<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+/// Extract structural whitespace
+fn ws<'tokens, 'src: 'tokens, I>() -> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	just(Token::Eq).ignore_then(empty()).or(select! { Token::WS(_) => () })
+	select! { Token::WS(_) => () }.labelled("whitespace")
 }
 
-/// Extract identifier-like tokens (alias, to)
+/// Extract identifier-like tokens (Text, alias, to)
 fn ident<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
 	select! {
-		Token::KwAlias => "alias",
-		Token::KwTo => "to",
+		Token::Alias => "alias",
+		Token::To => "to",
 	}
+}
+
+/// End of line: newline or EOF
+fn eol<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	just(Token::Newline).ignored().or(end())
 }
 
 /// Line ending with optional leading whitespace
@@ -158,7 +165,7 @@ fn line_ending<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	ws().repeated().ignore_then(end())
+	ws().repeated().ignore_then(eol())
 }
 
 // ----------------------------------------------------------------------------
@@ -190,11 +197,11 @@ fn alias_declaration<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	just(Token::KwAlias)
+	just(Token::Alias)
 		.ignore_then(ws().repeated())
 		.ignore_then(ident().map(|s| s.to_string()))
 		.then_ignore(ws().repeated())
-		.then_ignore(just(Token::KwTo))
+		.then_ignore(just(Token::To))
 		.then_ignore(ws().repeated())
 		.then(ident().map(|s| s.to_string()))
 		.then_ignore(line_ending())
@@ -210,8 +217,8 @@ where
 	let tag_chars = select! {
 		Token::Text(s) => s,
 		Token::WS(s) => s,
-		Token::KwAlias => "alias",
-		Token::KwTo => "to",
+		Token::Alias => "alias",
+		Token::To => "to",
 	};
 
 	let single_tag = tag_chars
@@ -238,8 +245,8 @@ where
 	let cloze_chars = select! {
 		Token::Text(s) => s,
 		Token::WS(s) => s,
-		Token::KwAlias => "alias",
-		Token::KwTo => "to",
+		Token::Alias => "alias",
+		Token::To => "to",
 		Token::Comma => ",",
 		Token::Colon => ":",
 	};
@@ -266,8 +273,8 @@ where
 	let text_chars = select! {
 		Token::Text(s) => s,
 		Token::WS(s) => s,
-		Token::KwAlias => "alias",
-		Token::KwTo => "to",
+		Token::Alias => "alias",
+		Token::To => "to",
 		Token::Comma => ",",
 		Token::Eq => "=",
 		Token::LBracket => "[",
