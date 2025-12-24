@@ -158,68 +158,119 @@ where
 	}
 }
 
-// ----------------------------------------------------------------------------
-// Builder State
-// ----------------------------------------------------------------------------
-
-/// State machine for building notes from parsed items
-#[derive(Default)]
-struct NoteBuilder<'m> {
-	current_model: Option<&'m NoteModel>,
-	aliases:       HashMap<String, String>,
-	tags:          Vec<String>,
-	fields:        Vec<NoteField>,
-	notes:         Vec<Note<'m>>,
+/// End of line: newline or EOF
+fn eol<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	just(Token::Newline).ignored().or(end())
 }
 
-impl<'m> NoteBuilder<'m> {
-	fn has_pending_note(&self) -> bool { !self.fields.is_empty() }
+/// Line ending with optional leading whitespace
+fn line_ending<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	ws().repeated().ignore_then(eol())
+}
 
-	fn finalize_note(&mut self) {
-		if !self.has_pending_note() {
-			return;
-		}
+// ----------------------------------------------------------------------------
+// Semantic Parsers
+// ----------------------------------------------------------------------------
 
-		if let Some(model) = self.current_model {
-			self.notes.push(Note {
-				fields: std::mem::take(&mut self.fields),
-				tags:   std::mem::take(&mut self.tags),
-				model:  std::borrow::Cow::Borrowed(model),
-			});
-		} else {
-			// No active model: discard accumulated fields/tags
-			self.clear_current_note();
-		}
-	}
+/// Parse model declaration: = Model Name =
+fn model_declaration<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, String, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	let model_name_parts = select! {
+		Token::Text(s) => s,
+		Token::WS(s) => s,
+	};
 
-	fn clear_current_note(&mut self) {
-		self.fields.clear();
-		self.tags.clear();
-	}
+	just(Token::Eq)
+		.ignore_then(model_name_parts.repeated().collect::<Vec<_>>())
+		.then_ignore(just(Token::Eq))
+		.map(|parts: Vec<&str>| parts.concat().trim().to_string())
+		.then_ignore(line_ending())
+		.labelled("model declaration")
+}
 
-	fn switch_model(&mut self, model: Option<&'m NoteModel>) {
-		self.finalize_note();
-		self.aliases.clear();
-		self.current_model = model;
-	}
+/// Parse alias: alias <from> to <to>
+fn alias_declaration<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (String, String), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	just(Token::KwAlias)
+		.ignore_then(ws().repeated())
+		.ignore_then(ident().map(|s| s.to_string()))
+		.then_ignore(ws().repeated())
+		.then_ignore(just(Token::KwTo))
+		.then_ignore(ws().repeated())
+		.then(ident().map(|s| s.to_string()))
+		.then_ignore(line_ending())
+		.labelled("alias declaration")
+}
 
-	fn set_tags(&mut self, tags: Vec<String>) { self.tags = tags; }
+/// Parse tags: [tag1, tag2, tag3]
+fn tags_declaration<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, Vec<String>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	let tag_chars = select! {
+		Token::Text(s) => s,
+		Token::WS(s) => s,
+		Token::KwAlias => "alias",
+		Token::KwTo => "to",
+	};
 
-	fn add_tags(&mut self, tags: Vec<String>) { self.tags.extend(tags); }
+	let single_tag = tag_chars
+		.repeated()
+		.at_least(1)
+		.collect::<Vec<&str>>()
+		.map(|parts| parts.concat().trim().to_string());
 
-	fn add_field(&mut self, field: NoteField) { self.fields.push(field); }
+	single_tag
+		.separated_by(just(Token::Comma))
+		.allow_trailing()
+		.collect()
+		.delimited_by(just(Token::LBracket), just(Token::RBracket))
+		.then_ignore(line_ending())
+		.labelled("tags")
+}
 
-	fn resolve_field_name(&self, name: &str) -> String {
-		self.aliases.get(name).cloned().unwrap_or_else(|| name.to_string())
-	}
+/// Parse cloze: {Answer|Hint}
+fn cloze<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, TextElement, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	let cloze_chars = select! {
+		Token::Text(s) => s,
+		Token::WS(s) => s,
+		Token::KwAlias => "alias",
+		Token::KwTo => "to",
+		Token::Comma => ",",
+		Token::Colon => ":",
+	};
 
-	fn has_alias(&self, alias: &str) -> bool { self.aliases.get(alias).is_some() }
+	let cloze_part = cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
 
-	fn add_alias(&mut self, from: String, to: String) {
-		if self.current_model.is_some() {
-			self.aliases.insert(to, from);
-		}
-	}
+	let hint =
+		just(Token::Pipe).ignore_then(cloze_part.clone()).map(|s| s.trim().to_string()).or_not();
+
+	just(Token::LBrace)
+		.ignore_then(cloze_part.map(|s| s.trim().to_string()))
+		.then(hint)
+		.then_ignore(just(Token::RBrace))
+		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }))
+		.labelled("cloze")
+}
 
 	fn validate_and_add_field(
 		&mut self,
