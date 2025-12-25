@@ -380,7 +380,13 @@ where
 	}
 	.ignored();
 
-	let note_block = model_declaration()
+	// Parse a single note's content (tags and fields only)
+	let note_content = tags_declaration()
+		.or_not()
+		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>());
+
+	// Parse a model declaration followed by aliases, then one or more notes
+	let model_section = model_declaration()
 		.validate(move |model_name, extra, emitter| {
 			let span = extra.span();
 			available_models.iter().find(|m| m.name == model_name).map_or_else(
@@ -397,38 +403,56 @@ where
 			)
 		})
 		.then_ignore(line_ending())
+		// Parse aliases ONCE after model declaration
 		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
-		.then_ignore(noise.repeated())
-		.then(tags_declaration().or_not())
-		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
-		.validate(move |(((model_opt, aliases), tags), fields), extra, emitter| {
+		.then_ignore(noise.clone().repeated())
+		// Then parse multiple notes
+		.then(note_content.padded_by(noise.clone().repeated()).repeated().at_least(1).collect())
+		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
 
-			// Swap the order...
+			// Build alias map once for all notes
 			let alias_map: HashMap<_, _> =
-				aliases.into_iter().map(|original| (original.1, original.0)).collect();
+				aliases.into_iter().map(|(from, to)| (to, from)).collect();
 
-			for field in &fields {
-				// Attempt to get the corresponding key in the alias map, and if we can't find
-				// anything, then it's not an alias we know, so an explict field naming.
-				let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+			let notes: Vec<Note> = notes_data
+				.into_iter()
+				.filter_map(|(tags, fields)| {
+					// Validate fields against model (with alias resolution)
+					for field in &fields {
+						let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
 
-				if !model.fields.iter().any(|f| &f.name == resolved_name) {
-					emitter.emit(Rich::custom(
-						span,
-						format!("Field '{}' not found in model '{}'", field.name, model.name),
-					));
-				}
-			}
-			Some(
-				NoteComponents { model, aliases: alias_map, tags: tags.unwrap_or_default(), fields }
-					.into_note(),
-			)
+						if !model.fields.iter().any(|f| &f.name == resolved_name) {
+							emitter.emit(Rich::custom(
+								span,
+								format!("Field '{}' not found in model '{}'", field.name, model.name),
+							));
+							return None;
+						}
+					}
+
+					Some(
+						NoteComponents {
+							model,
+							aliases: alias_map.clone(), // Clone the shared alias map
+							tags: tags.unwrap_or_default(),
+							fields,
+						}
+						.into_note(),
+					)
+				})
+				.collect();
+
+			Some(notes)
 		})
 		.try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
-		.then_ignore(noise.clone().ignored().or(end()))
 		.recover_with(skip_then_retry_until(any().ignored(), noise.clone().ignored()));
 
-	note_block.padded_by(noise.repeated()).repeated().collect().then_ignore(end())
+	model_section
+		.padded_by(noise.clone().repeated())
+		.repeated()
+		.collect::<Vec<Vec<Note>>>()
+		.map(|v| v.into_iter().flatten().collect())
+		.then_ignore(end())
 }
