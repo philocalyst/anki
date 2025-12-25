@@ -14,6 +14,9 @@ pub enum DeckError {
 	#[error("File '{0}' not found in history.")]
 	FileNotInHistory(String),
 
+	#[error("History is Empty")]
+	EmptyHistory,
+
 	#[error("Invalid tree entry.")]
 	InvalidEntry,
 
