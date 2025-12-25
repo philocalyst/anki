@@ -5,7 +5,7 @@ use tracing::{debug, error, info, instrument};
 use crate::error::DeckError;
 
 #[instrument]
-pub fn find_deck_directory<'a>() -> Result<PathBuf, DeckError> {
+pub fn find_deck_directory() -> Result<PathBuf, DeckError> {
 	info!("Searching for deck directory");
 
 	pub fn is_deck_dir(path: &Path) -> bool {

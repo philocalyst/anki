@@ -11,7 +11,7 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::{note::{Identified, Note}, note_methods::Identifiable}, uuid_generator};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::note::{Identified, Note}, uuid_generator};
 
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking

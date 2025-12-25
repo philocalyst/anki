@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 
 use eyre::{Context, Result, eyre};
 use flash::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::find_deck_directory, parse::ImportExpander, types::{deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
@@ -127,7 +127,7 @@ fn process_card_history<'a>(
 	let mut elder_cards = initialize_cards(deck, first_entry, first_commit, first_cards)?;
 
 	// Process remaining entries
-	for (idx, (entry, _commit)) in history_iter.enumerate() {
+	for (idx, _entry_info) in history_iter.enumerate() {
 		let cards_of_the_day = parse_cards_from_content(deck, &all_contents[idx + 1])?;
 
 		// Make a diff of the changes and update the final cards appropriately

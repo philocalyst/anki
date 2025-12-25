@@ -13,8 +13,8 @@ pub enum Transforms<'a> {
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
-pub fn determine_changes<'a, 'b>(
-	deck_1: &'a [Note], // The old deck is MORE disposable
+pub fn determine_changes<'b>(
+	deck_1: &[Note], // The old deck is MORE disposable
 	deck_2: &'b [Note],
 	// Transforms are relevant only to the new deck
 ) -> Result<Option<Transforms<'b>>, DeckError> {
@@ -81,15 +81,14 @@ pub fn determine_changes<'a, 'b>(
 		// Find all positions where cards differ
 		let mut reorderings = HashSet::new();
 		for ((idx1, card1), (_, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
-			if *card1 != *card2 {
-				if let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
+			if *card1 != *card2
+				&& let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
 					// Track where each card moved from -> to
 					let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
 					reorderings.insert(swap);
 				}
-			}
 		}
-		return Ok(Some(Transforms::Reorders(reorderings)));
+		Ok(Some(Transforms::Reorders(reorderings)))
 	} else {
 		// Different cards at same positions - these are modifications
 		// Find all positions where content changed
@@ -99,6 +98,6 @@ pub fn determine_changes<'a, 'b>(
 				modifications.push((index, card2));
 			}
 		}
-		return Ok(Some(Transforms::Modifications(modifications)));
+		Ok(Some(Transforms::Modifications(modifications)))
 	}
 }

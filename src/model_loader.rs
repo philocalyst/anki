@@ -5,10 +5,7 @@ use tracing::{debug, info, instrument};
 use crate::{error::DeckError, types::note::NoteModel};
 
 #[instrument]
-pub fn load_models<'a>(
-	model_paths: &[PathBuf],
-	deck_path: &Path,
-) -> Result<Vec<NoteModel>, DeckError> {
+pub fn load_models(model_paths: &[PathBuf], deck_path: &Path) -> Result<Vec<NoteModel>, DeckError> {
 	info!("Loading {} models", model_paths.len());
 
 	let mut all_models = Vec::new();
@@ -22,7 +19,7 @@ pub fn load_models<'a>(
 		let mut model: NoteModel = toml::from_str(&config_content)?;
 
 		// TODO: This path should be more dynamic
-		model.complete(&model_path)?;
+		model.complete(model_path)?;
 
 		info!("Loaded model: {}", model.name);
 		all_models.push(model);

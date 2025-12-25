@@ -1,9 +1,9 @@
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fmt, fs, path::{Path, PathBuf}};
+use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 
-use chumsky::{input::{Emitter, ValueInput}, prelude::*};
+use chumsky::{input::ValueInput, prelude::*};
 use logos::Logos;
 
-use crate::types::{note::{Cloze, Note, NoteField, NoteModel, TextElement}, parser::FlashItem};
+use crate::types::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {

@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::{error::DeckError, types::{crowd_anki_config::{ConfigType, DeckConfig, LapseConfig, NewConfig, RevConfig}, crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, TextElement}}};
+use crate::{error::DeckError, types::{crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, TextElement}}};
 
 // Extension trait to add .identified() method
 pub trait Identifiable: Sized {
@@ -37,53 +37,53 @@ impl super::note::NoteModel {
 			let entry = entry?;
 			let path = entry.path();
 
-			if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-				if ext == "hbs" {
-					let filename = path.file_stem().unwrap().to_string_lossy().to_string();
+			if let Some(ext) = path.extension().and_then(|e| e.to_str())
+				&& ext == "hbs"
+			{
+				let filename = path.file_stem().unwrap().to_string_lossy().to_string();
 
-					// Parse naming convention: NAME+front.hbs, NAME+back.browser.hbs, etc.
-					let parts: Vec<&str> = filename.split('+').collect();
-					if parts.len() != 2 {
-						return Err(DeckError::InvalidTemplateFilename(filename));
-					}
+				// Parse naming convention: NAME+front.hbs, NAME+back.browser.hbs, etc.
+				let parts: Vec<&str> = filename.split('+').collect();
+				if parts.len() != 2 {
+					return Err(DeckError::InvalidTemplateFilename(filename));
+				}
 
-					let template_name = parts[0].to_string();
-					let side = parts[1];
+				let template_name = parts[0].to_string();
+				let side = parts[1];
 
-					// Find or create template
-					let tmpl =
-						templates.iter_mut().find(|t: &&mut super::config::Template| t.name == template_name);
+				// Find or create template
+				let tmpl =
+					templates.iter_mut().find(|t: &&mut super::config::Template| t.name == template_name);
 
-					let tmpl = if let Some(t) = tmpl {
-						t
+				let tmpl = if let Some(t) = tmpl {
+					t
+				} else {
+					templates.push(super::config::Template {
+						name:                    template_name.clone(),
+						order:                   templates.len() as i32,
+						question_format:         String::new(),
+						answer_format:           String::new(),
+						browser_question_format: String::new(),
+						browser_answer_format:   String::new(),
+					});
+					templates.last_mut().unwrap()
+				};
+
+				let content =
+					fs::read_to_string(&path).map_err(|_| DeckError::TemplateNotFound(path.clone()))?;
+
+				// Assign based on side
+				if side.starts_with("front") {
+					if side.contains("browser") {
+						tmpl.browser_question_format = content;
 					} else {
-						templates.push(super::config::Template {
-							name:                    template_name.clone(),
-							order:                   templates.len() as i32,
-							question_format:         String::new(),
-							answer_format:           String::new(),
-							browser_question_format: String::new(),
-							browser_answer_format:   String::new(),
-						});
-						templates.last_mut().unwrap()
-					};
-
-					let content =
-						fs::read_to_string(&path).map_err(|_| DeckError::TemplateNotFound(path.clone()))?;
-
-					// Assign based on side
-					if side.starts_with("front") {
-						if side.contains("browser") {
-							tmpl.browser_question_format = content;
-						} else {
-							tmpl.question_format = content;
-						}
-					} else if side.starts_with("back") {
-						if side.contains("browser") {
-							tmpl.browser_answer_format = content;
-						} else {
-							tmpl.answer_format = content;
-						}
+						tmpl.question_format = content;
+					}
+				} else if side.starts_with("back") {
+					if side.contains("browser") {
+						tmpl.browser_answer_format = content;
+					} else {
+						tmpl.answer_format = content;
 					}
 				}
 			}
@@ -210,7 +210,7 @@ impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::N
 /// This type represents Cloze's as anki expects them in note fields
 pub struct ClozeString(String);
 
-impl<'a> From<Cloze> for ClozeString {
+impl From<Cloze> for ClozeString {
 	fn from(cloze: Cloze) -> Self {
 		if let Some(hint) = cloze.hint {
 			ClozeString(format!("{{{{c{}::{}::{}}}}}", cloze.id, cloze.answer, hint))
