@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{fs, path::{Path, PathBuf}};
 
 use eyre::{Context, Result, eyre};
-use flash::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::find_deck_directory, parse::ImportExpander, types::{deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
+use flash::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::find_deck_directory, parse::ImportExpander, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
 use gix::{Commit, object::tree::Entry};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
@@ -48,94 +48,21 @@ fn main() -> Result<()> {
 	let all_contents: Vec<String> =
 		history.iter().map(|(entry, _)| get_content(&deck, entry)).collect::<Result<Vec<_>>>()?;
 
-	let _static_cards = process_card_history(&deck, &history, &all_contents)?;
+	let static_cards = process_card_history(&deck, &history, &all_contents)?;
+
+	let mut deck2 = deck.clone();
 
 	// Done with history
 	drop(history);
 
+	deck2.cards = static_cards;
+
+	let out: CrowdAnkiEntity = deck2.into();
+
+	let out = sonic_rs::serde::to_string(&out)?;
+
+	fs::write("flash.json", out)?;
+
 	info!("Deck parsing completed");
 	Ok(())
-}
-
-// Parse cards from a string reference
-fn parse_cards_from_content<'a>(deck: &'a Deck<'a>, content: &'a str) -> Result<Vec<Note<'a>>> {
-	deck.parse_cards(content).wrap_err("Failed to parse cards")
-}
-
-// Initialize the first state with UUIDs
-fn initialize_cards<'a>(
-	deck: &Deck,
-	entry: &Entry,
-	commit: &Commit,
-	cards: Vec<Note<'a>>,
-) -> Result<Vec<Identified<Note<'a>>>> {
-	// Generate initial set of UUIDs
-	let uuids = deck
-		.generate_note_uuids((entry.clone(), commit.clone()))
-		.wrap_err("Failed to generate UUIDs")?;
-
-	Ok(cards.into_iter().zip(uuids).map(|(card, id)| card.identified(id)).collect())
-}
-
-/// Interpret the passing of a cycle
-fn process_cycle(
-	last_cards: &[Note],
-	current_cards: &[Note],
-	static_cards: &mut Vec<Identified<Note>>,
-) -> Result<()> {
-	// It might be that a change was made but nothing of note happened, like a misc.
-	// newline, check for this.
-	if let Some(changes) =
-		determine_changes(last_cards, current_cards).wrap_err("Failed to determine changes")?
-	{
-		// Assuming resolve_uuids mutates static_cards in place or returns new value
-		// If it returns a new value:
-		resolve_changes(&changes, static_cards, Uuid::default());
-	}
-	Ok(())
-}
-
-fn get_content(deck: &Deck, entry: &Entry) -> Result<String> {
-	let file: PathBuf =
-		deck.backing_vcs.git_dir().parent().unwrap().join(PathBuf::from(entry.filename().to_string()));
-
-	let content =
-		deck.read_file_content(&entry.try_into()?).wrap_err("Failed to read file content")?;
-
-	// Expand all imports first
-	let mut expander = ImportExpander::new(file.parent().unwrap_or_else(|| Path::new(".")));
-
-	Ok(expander.expand(&content, file.as_path()).unwrap())
-}
-
-// Main processing logic
-fn process_card_history<'a>(
-	deck: &'a Deck<'_>,
-	history: &[(Entry, Commit)],
-	all_contents: &'a [String],
-) -> Result<Vec<Identified<Note<'a>>>> {
-	let mut history_iter = history.iter();
-
-	// Handle first entry separately
-	let (first_entry, first_commit) = history_iter.next().ok_or_else(|| eyre!("History is empty"))?;
-
-	let first_cards = parse_cards_from_content(deck, &all_contents[0])?;
-
-	// Blankly initialize, as we immediately overwrite
-	let mut bygone_cards = Vec::with_capacity(first_cards.len());
-
-	let mut elder_cards = initialize_cards(deck, first_entry, first_commit, first_cards)?;
-
-	// Process remaining entries
-	for (idx, _entry_info) in history_iter.enumerate() {
-		let cards_of_the_day = parse_cards_from_content(deck, &all_contents[idx + 1])?;
-
-		// Make a diff of the changes and update the final cards appropriately
-		process_cycle(&bygone_cards, &cards_of_the_day, &mut elder_cards)?;
-
-		// Cycle complete, the once-new cards lose their youth.
-		bygone_cards = cards_of_the_day;
-	}
-
-	Ok(elder_cards)
 }
