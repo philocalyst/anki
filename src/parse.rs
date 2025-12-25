@@ -85,55 +85,59 @@ type Span = SimpleSpan;
 pub enum Token<'a> {
 	#[token("=")]
 	Eq,
-	
+
 	#[token(":")]
 	Colon,
-	
+
 	#[token("[")]
 	LBracket,
-	
+
 	#[token("]")]
 	RBracket,
-	
+
 	#[token("{")]
 	LBrace,
-	
+
 	#[token("}")]
 	RBrace,
-	
+
 	#[token("|")]
 	Pipe,
-	
+
 	#[token(",")]
 	Comma,
-	
+
 	#[token("alias")]
 	Alias,
-	
-	#[token("to")]
+
+	#[token("to", priority = 5)]
 	To,
-	
+
 	#[token("\n")]
 	Newline,
-	
+
 	#[regex(r"[ \t]+")]
 	WS(&'a str),
-	
-	#[regex(r"[^ \t\n:=\[\]{},|]+")]
+
+	#[regex(r"[^ \t\n:=\[\]{},|]+", priority = 4)]
 	Text(&'a str),
-	
-	#[regex(r"//[^\n]*", allow_greedy = true)]
+
+	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
 	Comment(&'a str),
 
-	Error
+	// Matches from start of line/whitespace to a colon
+	#[regex(r"[^ \t\n:=\[\]{},|]+:", |lex| lex.slice().strip_suffix(':'))]
+	Field(&'a str),
 
+	Error,
 }
 
 // Basic Token extractors
 
 /// Extract whitespace (including = as special whitespace)
 /// Extract structural whitespace
-fn ws<'tokens, 'src: 'tokens, I>() -> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+fn ws<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
@@ -199,7 +203,6 @@ where
 		.ignore_then(model_name_parts.repeated().collect::<Vec<_>>())
 		.then_ignore(just(Token::Eq))
 		.map(|parts: Vec<&str>| parts.concat().trim().to_string())
-		.then_ignore(line_ending())
 		.labelled("model declaration")
 }
 
@@ -216,7 +219,6 @@ where
 		.then_ignore(just(Token::To))
 		.then_ignore(ws().repeated())
 		.then(text().map(|s| s.to_string()))
-		.then_ignore(line_ending())
 		.labelled("alias declaration")
 }
 
@@ -306,9 +308,8 @@ fn field_declaration<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	ident()
+	select! {Token::Field(s) => s}
 		.map(|s| s.to_string())
-		.then_ignore(just(Token::Colon))
 		.then_ignore(ws().repeated())
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
@@ -388,7 +389,7 @@ where
 
 	let note_block = model_declaration()
         .validate(move |model_name, extra, emitter| {
-            let span = extra.span(); 
+            let span = extra.span();
             available_models
                 .iter()
                 .find(|m| m.name == model_name)
@@ -401,17 +402,16 @@ where
                     emitter.emit(Rich::custom(span, format!("Unknown model '{}'. Available: [{}]", model_name, available)));
                     None
                 }, Some)
-        })
-        .then(alias_declaration().repeated().collect::<Vec<_>>())
+        })		.then_ignore(line_ending())
+        .then(alias_declaration()		.then_ignore(line_ending())
+.repeated().collect::<Vec<_>>())		.then_ignore(blank_line.clone())
         .then(tags_declaration().or_not())
         .then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
         .validate(move |(((model_opt, aliases), tags), fields), extra, emitter| {
-            let model = model_opt?; 
-            let span = extra.span(); 
+            let model = model_opt?;
+            let span = extra.span();
 
-            let alias_map: HashMap<_, _> = aliases.into_iter().collect();
-            
-            for field in &fields {
+            let alias_map: HashMap<_, _> = aliases.into_iter().collect();      for field in &fields {
                 let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
                 if !model.fields.iter().any(|f| &f.name == resolved_name) {
                     emitter.emit(Rich::custom(
@@ -419,9 +419,7 @@ where
                         format!("Field '{}' not found in model '{}'", field.name, model.name),
                     ));
                 }
-            }
-
-            Some(NoteComponents {
+            }Some(NoteComponents {
                 model,
                 aliases: alias_map,
                 tags: tags.unwrap_or_default(),
@@ -434,7 +432,7 @@ where
         .then_ignore(blank_line.clone().ignored().or(end()))
         .recover_with(skip_then_retry_until(any().ignored(), blank_line.clone().ignored()));
 
-    note_block
+	note_block
         .padded_by(comment_line().repeated())
         .padded_by(blank_line.repeated())
         .repeated()
