@@ -184,15 +184,6 @@ where
 	just(Token::Newline).ignored().or(end())
 }
 
-/// Line ending with optional leading whitespace
-fn line_ending<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
-where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
-{
-	ws().repeated().ignore_then(eol())
-}
-
 /// Parse model declaration: = Model Name =
 fn model_declaration<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, String, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
@@ -251,7 +242,7 @@ where
 		.allow_trailing()
 		.collect()
 		.delimited_by(just(Token::LBracket), just(Token::RBracket))
-		.then_ignore(line_ending())
+		.then_ignore(noise())
 		.labelled("tags")
 }
 
@@ -318,7 +309,7 @@ where
 		.then_ignore(ws().repeated())
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
-		.then_ignore(line_ending())
+		.then_ignore(noise())
 		.labelled("field")
 }
 
@@ -328,7 +319,7 @@ fn comment_line<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	select! { Token::Comment(_) => () }.then_ignore(line_ending()).labelled("comment")
+	select! { Token::Comment(_) => () }.then_ignore(noise()).labelled("comment")
 }
 
 // ----------------------------------------------------------------------------
@@ -423,10 +414,10 @@ where
 				Some,
 			)
 		})
-		.then_ignore(line_ending())
+		.then_ignore(noise())
 		// Parse aliases ONCE after model declaration
-		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
-		.then_ignore(noise().clone().repeated())
+		.then(alias_declaration().then_ignore(noise()).repeated().collect::<Vec<_>>())
+		.then_ignore(noise().repeated())
 }
 
 pub fn flash<'tokens, 'src: 'tokens, I>(
@@ -438,7 +429,7 @@ where
 	// Parse a model declaration followed by aliases, then one or more notes
 	let model_section = intro(available_models)
 		// Then parse multiple notes
-		.then(note().padded_by(noise().clone().repeated()).repeated().at_least(1).collect())
+		.then(note().padded_by(noise().repeated()).repeated().at_least(1).collect())
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
@@ -478,10 +469,10 @@ where
 			Some(notes)
 		})
 		.try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
-		.recover_with(skip_then_retry_until(any().ignored(), noise().clone().ignored()));
+		.recover_with(skip_then_retry_until(any().ignored(), noise().ignored()));
 
 	model_section
-		.padded_by(noise().clone().repeated())
+		.padded_by(noise().repeated())
 		.repeated()
 		.collect::<Vec<Vec<Note>>>()
 		.map(|v| v.into_iter().flatten().collect())
