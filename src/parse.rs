@@ -367,6 +367,22 @@ impl<'m> NoteComponents<'m> {
 	}
 }
 
+/// Parse field: Name: Content
+fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
+	'tokens,
+	I,
+	(Option<Vec<String>>, Vec<NoteField>),
+	extra::Err<Rich<'tokens, Token<'src>, Span>>,
+> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	// Parse a single note's content (tags and fields only)
+	tags_declaration()
+		.or_not() // It's optional whether we have tags or not
+		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
+}
+
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
 ) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
@@ -379,11 +395,6 @@ where
 			Token::WS(_) => (),
 	}
 	.ignored();
-
-	// Parse a single note's content (tags and fields only)
-	let note_content = tags_declaration()
-		.or_not()
-		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>());
 
 	// Parse a model declaration followed by aliases, then one or more notes
 	let model_section = model_declaration()
@@ -407,7 +418,7 @@ where
 		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
 		.then_ignore(noise.clone().repeated())
 		// Then parse multiple notes
-		.then(note_content.padded_by(noise.clone().repeated()).repeated().at_least(1).collect())
+		.then(note().padded_by(noise.clone().repeated()).repeated().at_least(1).collect())
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
