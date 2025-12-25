@@ -77,10 +77,6 @@ impl ImportExpander {
 
 type Span = SimpleSpan;
 
-// ----------------------------------------------------------------------------
-// Lexer (unchanged)
-// ----------------------------------------------------------------------------
-
 #[derive(Logos, Clone, Debug, PartialEq)]
 pub enum Token<'a> {
 	#[token("=")]
@@ -183,10 +179,6 @@ where
 {
 	ws().repeated().ignore_then(eol())
 }
-
-// ----------------------------------------------------------------------------
-// Semantic Parsers
-// ----------------------------------------------------------------------------
 
 /// Parse model declaration: = Model Name =
 fn model_declaration<'tokens, 'src: 'tokens, I>()
@@ -411,8 +403,13 @@ where
             let model = model_opt?;
             let span = extra.span();
 
-            let alias_map: HashMap<_, _> = aliases.into_iter().collect();      for field in &fields {
+            // Swap the order...
+            let alias_map: HashMap<_, _> = aliases.into_iter().map(|original| (original.1, original.0)).collect();
+
+            for field in &fields {
+            	// Attempt to get the corresponding key in the alias map, and if we can't find anything, then it's not an alias we know, so an explict field naming.
                 let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+
                 if !model.fields.iter().any(|f| &f.name == resolved_name) {
                     emitter.emit(Rich::custom(
                         span,
