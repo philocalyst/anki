@@ -380,7 +380,7 @@ impl<'m> NoteComponents<'m> {
 	}
 }
 
-/// Parse field: Name: Content
+/// Parse a single note's content (tags and fields only)
 fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
 	'tokens,
 	I,
@@ -390,20 +390,24 @@ fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	// Parse a single note's content (tags and fields only)
 	tags_declaration()
 		.or_not() // It's optional whether we have tags or not
 		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
 }
 
-pub fn flash<'tokens, 'src: 'tokens, I>(
+/// Parse an intro of metadata for a set of notes
+fn intro<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
-) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+) -> impl Parser<
+	'tokens,
+	I,
+	(Option<&'tokens NoteModel>, Vec<(String, String)>),
+	extra::Err<Rich<'tokens, Token<'src>, Span>>,
+> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	// Parse a model declaration followed by aliases, then one or more notes
-	let model_section = model_declaration()
+	model_declaration()
 		.validate(move |model_name, extra, emitter| {
 			let span = extra.span();
 			available_models.iter().find(|m| m.name == model_name).map_or_else(
@@ -423,6 +427,16 @@ where
 		// Parse aliases ONCE after model declaration
 		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
 		.then_ignore(noise().clone().repeated())
+}
+
+pub fn flash<'tokens, 'src: 'tokens, I>(
+	available_models: &'tokens [NoteModel],
+) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	// Parse a model declaration followed by aliases, then one or more notes
+	let model_section = intro(available_models)
 		// Then parse multiple notes
 		.then(note().padded_by(noise().clone().repeated()).repeated().at_least(1).collect())
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
