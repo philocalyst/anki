@@ -130,6 +130,19 @@ pub enum Token<'a> {
 
 // Basic Token extractors
 
+fn noise<'tokens, 'src: 'tokens, I>()
+-> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+where
+	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
+{
+	select! {
+			Token::Newline => (),
+			Token::Comment(_) => (),
+			Token::WS(_) => (),
+	}
+	.ignored()
+}
+
 /// Extract whitespace (including = as special whitespace)
 /// Extract structural whitespace
 fn ws<'tokens, 'src: 'tokens, I>()
@@ -389,13 +402,6 @@ pub fn flash<'tokens, 'src: 'tokens, I>(
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	let noise = select! {
-			Token::Newline => (),
-			Token::Comment(_) => (),
-			Token::WS(_) => (),
-	}
-	.ignored();
-
 	// Parse a model declaration followed by aliases, then one or more notes
 	let model_section = model_declaration()
 		.validate(move |model_name, extra, emitter| {
@@ -416,9 +422,9 @@ where
 		.then_ignore(line_ending())
 		// Parse aliases ONCE after model declaration
 		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
-		.then_ignore(noise.clone().repeated())
+		.then_ignore(noise().clone().repeated())
 		// Then parse multiple notes
-		.then(note().padded_by(noise.clone().repeated()).repeated().at_least(1).collect())
+		.then(note().padded_by(noise().clone().repeated()).repeated().at_least(1).collect())
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
@@ -458,10 +464,10 @@ where
 			Some(notes)
 		})
 		.try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
-		.recover_with(skip_then_retry_until(any().ignored(), noise.clone().ignored()));
+		.recover_with(skip_then_retry_until(any().ignored(), noise().clone().ignored()));
 
 	model_section
-		.padded_by(noise.clone().repeated())
+		.padded_by(noise().clone().repeated())
 		.repeated()
 		.collect::<Vec<Vec<Note>>>()
 		.map(|v| v.into_iter().flatten().collect())
