@@ -121,10 +121,6 @@ pub enum Token<'a> {
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
 	Comment(&'a str),
 
-	// Matches from start of line/whitespace to a colon
-	#[regex(r"[^ \t\n:=\[\]{},|]+:", |lex| lex.slice().strip_suffix(':'))]
-	Field(&'a str),
-
 	Error,
 }
 
@@ -153,18 +149,6 @@ where
 	select! { Token::WS(_) => () }.labelled("whitespace")
 }
 
-/// Extract identifier-like tokens (Text, alias, to)
-fn ident<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
-where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
-{
-	select! {
-		Token::Alias => "alias",
-		Token::To => "to",
-	}
-}
-
 fn text<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, &'src str, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
@@ -173,15 +157,6 @@ where
 	select! {
 		Token::Text(s) => s,
 	}
-}
-
-/// End of line: newline or EOF
-fn eol<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
-where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
-{
-	just(Token::Newline).ignored().or(end())
 }
 
 /// Parse model declaration: = Model Name =
@@ -304,8 +279,9 @@ fn field_declaration<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	select! {Token::Field(s) => s}
+	text()
 		.map(|s| s.to_string())
+		.then_ignore(just(Token::Colon))
 		.then_ignore(ws().repeated())
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
