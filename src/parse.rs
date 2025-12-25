@@ -64,15 +64,6 @@ impl ImportExpander {
 
 		Ok(result)
 	}
-
-	/// Convenience method to expand from a file path
-	pub fn expand_file(&mut self, path: impl AsRef<Path>) -> Result<String, String> {
-		let path = path.as_ref();
-		let content = fs::read_to_string(path)
-			.map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
-
-		self.expand(&content, path)
-	}
 }
 
 type Span = SimpleSpan;
@@ -294,15 +285,6 @@ where
 		.labelled("field")
 }
 
-/// Parse comment line
-fn comment_line<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, (), extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
-where
-	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
-{
-	select! { Token::Comment(_) => () }.then_ignore(noise()).labelled("comment")
-}
-
 // Note Builder
 
 /// Merges adjacent Text elements to reduce fragmentation
@@ -366,13 +348,15 @@ where
 		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
 }
 
+type AliasPairs = Vec<(String, String)>;
+
 /// Parse an intro of metadata for a set of notes
 fn intro<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
 ) -> impl Parser<
 	'tokens,
 	I,
-	(Option<&'tokens NoteModel>, Vec<(String, String)>),
+	(Option<&'tokens NoteModel>, AliasPairs),
 	extra::Err<Rich<'tokens, Token<'src>, Span>>,
 > + Clone
 where
@@ -400,6 +384,8 @@ where
 		.then_ignore(noise().repeated())
 }
 
+type RawNote = (Option<Vec<String>>, Vec<NoteField>);
+
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
 ) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
@@ -410,7 +396,7 @@ where
 	let model_section = intro(available_models)
 		// Then parse multiple notes
 		.then(note().padded_by(noise().repeated()).repeated().at_least(1).collect())
-		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, Vec<(String, String)>), Vec<(Option<Vec<String>>, Vec<NoteField>)>), extra, emitter| {
+		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
 
