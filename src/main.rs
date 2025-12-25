@@ -99,10 +99,13 @@ fn get_content(deck: &Deck, entry: &Entry) -> Result<String> {
 	let file: PathBuf =
 		deck.backing_vcs.git_dir().parent().unwrap().join(PathBuf::from(entry.filename().to_string()));
 
+	let content =
+		deck.read_file_content(&entry.try_into()?).wrap_err("Failed to read file content")?;
+
 	// Expand all imports first
 	let mut expander = ImportExpander::new(file.parent().unwrap_or_else(|| Path::new(".")));
 
-	Ok(expander.expand_file(file).unwrap())
+	Ok(expander.expand(&content, file.as_path()).unwrap())
 }
 
 // Main processing logic
