@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fmt, fs, path::{Path, PathBuf}};
+use std::{borrow::Cow, collections::{HashMap, HashSet}, fmt, fs, path::{Path, PathBuf}};
 
 use chumsky::{input::{Emitter, ValueInput}, prelude::*};
 use logos::Logos;
@@ -238,8 +238,7 @@ where
 
 	let cloze_part = cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
 
-	let hint =
-		just(Token::Pipe).ignore_then(cloze_part.clone()).map(|s| s.trim().to_string()).or_not();
+	let hint = just(Token::Pipe).ignore_then(cloze_part).map(|s| s.trim().to_string()).or_not();
 
 	just(Token::LBrace)
 		.ignore_then(cloze_part.map(|s| s.trim().to_string()))
@@ -267,10 +266,16 @@ where
 		Token::Colon => ":",
 	};
 
-	let content_text = text_chars.map(|s: &str| TextElement::Text(s.to_string()));
-	let content_element = cloze().or(content_text);
+	// Collect consecutive text tokens into a Vec, then join into a single string
+	let merged_text = text_chars
+		.repeated()
+		.at_least(1)
+		.collect::<Vec<_>>()
+		.map(|parts| TextElement::Text(parts.join("")));
 
-	content_element.repeated().collect::<Vec<_>>().map(merge_adjacent_text)
+	let content_element = cloze().or(merged_text);
+
+	content_element.repeated().collect()
 }
 
 /// Parse field: Name: Content
@@ -298,9 +303,7 @@ where
 	select! { Token::Comment(_) => () }.then_ignore(noise()).labelled("comment")
 }
 
-// ----------------------------------------------------------------------------
 // Note Builder
-// ----------------------------------------------------------------------------
 
 /// Merges adjacent Text elements to reduce fragmentation
 fn merge_adjacent_text(elements: Vec<TextElement>) -> Vec<TextElement> {
@@ -338,12 +341,13 @@ impl<'m> NoteComponents<'m> {
 	fn into_note(mut self) -> Note<'m> {
 		// Resolve aliases in fields
 		for field in &mut self.fields {
+			// Get the corresponding alias
 			if let Some(target) = self.aliases.get(&field.name) {
 				field.name = target.clone();
 			}
 		}
 
-		Note { fields: self.fields, model: std::borrow::Cow::Borrowed(self.model), tags: self.tags }
+		Note { fields: self.fields, model: Cow::Borrowed(self.model), tags: self.tags }
 	}
 }
 
