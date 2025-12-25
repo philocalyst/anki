@@ -367,72 +367,68 @@ impl<'m> NoteComponents<'m> {
 	}
 }
 
-// ----------------------------------------------------------------------------
-// Main Parser
-// ----------------------------------------------------------------------------
-
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
 ) -> impl Parser<'tokens, I, Vec<Note<'tokens>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	let blank_line = just(Token::Newline);
+	let noise = select! {
+			Token::Newline => (),
+			Token::Comment(_) => (),
+			Token::WS(_) => (),
+	}
+	.ignored();
 
 	let note_block = model_declaration()
-        .validate(move |model_name, extra, emitter| {
-            let span = extra.span();
-            available_models
-                .iter()
-                .find(|m| m.name == model_name)
-                .map_or_else(|| {
-                    let available = available_models
-                        .iter()
-                        .map(|m| m.name.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    emitter.emit(Rich::custom(span, format!("Unknown model '{}'. Available: [{}]", model_name, available)));
-                    None
-                }, Some)
-        })		.then_ignore(line_ending())
-        .then(alias_declaration()		.then_ignore(line_ending())
-.repeated().collect::<Vec<_>>())		.then_ignore(blank_line.clone())
-        .then(tags_declaration().or_not())
-        .then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
-        .validate(move |(((model_opt, aliases), tags), fields), extra, emitter| {
-            let model = model_opt?;
-            let span = extra.span();
+		.validate(move |model_name, extra, emitter| {
+			let span = extra.span();
+			available_models.iter().find(|m| m.name == model_name).map_or_else(
+				|| {
+					let available =
+						available_models.iter().map(|m| m.name.as_str()).collect::<Vec<_>>().join(", ");
+					emitter.emit(Rich::custom(
+						span,
+						format!("Unknown model '{}'. Available: [{}]", model_name, available),
+					));
+					None
+				},
+				Some,
+			)
+		})
+		.then_ignore(line_ending())
+		.then(alias_declaration().then_ignore(line_ending()).repeated().collect::<Vec<_>>())
+		.then_ignore(noise.repeated())
+		.then(tags_declaration().or_not())
+		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
+		.validate(move |(((model_opt, aliases), tags), fields), extra, emitter| {
+			let model = model_opt?;
+			let span = extra.span();
 
-            // Swap the order...
-            let alias_map: HashMap<_, _> = aliases.into_iter().map(|original| (original.1, original.0)).collect();
+			// Swap the order...
+			let alias_map: HashMap<_, _> =
+				aliases.into_iter().map(|original| (original.1, original.0)).collect();
 
-            for field in &fields {
-            	// Attempt to get the corresponding key in the alias map, and if we can't find anything, then it's not an alias we know, so an explict field naming.
-                let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+			for field in &fields {
+				// Attempt to get the corresponding key in the alias map, and if we can't find
+				// anything, then it's not an alias we know, so an explict field naming.
+				let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
 
-                if !model.fields.iter().any(|f| &f.name == resolved_name) {
-                    emitter.emit(Rich::custom(
-                        span,
-                        format!("Field '{}' not found in model '{}'", field.name, model.name),
-                    ));
-                }
-            }Some(NoteComponents {
-                model,
-                aliases: alias_map,
-                tags: tags.unwrap_or_default(),
-                fields,
-            }
-            .into_note())
-        })
-        // Fix: Use try_map to unwrap the Option and filter out None values
-        .try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
-        .then_ignore(blank_line.clone().ignored().or(end()))
-        .recover_with(skip_then_retry_until(any().ignored(), blank_line.clone().ignored()));
+				if !model.fields.iter().any(|f| &f.name == resolved_name) {
+					emitter.emit(Rich::custom(
+						span,
+						format!("Field '{}' not found in model '{}'", field.name, model.name),
+					));
+				}
+			}
+			Some(
+				NoteComponents { model, aliases: alias_map, tags: tags.unwrap_or_default(), fields }
+					.into_note(),
+			)
+		})
+		.try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
+		.then_ignore(noise.clone().ignored().or(end()))
+		.recover_with(skip_then_retry_until(any().ignored(), noise.clone().ignored()));
 
-	note_block
-        .padded_by(comment_line().repeated())
-        .padded_by(blank_line.repeated())
-        .repeated()
-        .collect::<Vec<_>>() // Now this successfully collects into Vec<Note>
-        .then_ignore(end())
+	note_block.padded_by(noise.repeated()).repeated().collect().then_ignore(end())
 }
