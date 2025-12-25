@@ -42,9 +42,6 @@ impl<'b> super::Deck<'b> {
 
 		let configuration: DeckConfig = toml::from_str(&config_content)?;
 
-		dbg!(&configuration);
-
-		// Initialize with empty cards - these will be populated by parsing card files
 		let cards = Vec::new();
 
 		info!("Deck initialized successfully");
@@ -88,7 +85,8 @@ impl<'b> super::Deck<'b> {
 
 		// Parse the stream using the refactored flash parser
 		flash(&self.models).parse(token_stream).into_result().map_err(|e| {
-			let error_string = e.into_iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n");
+			let error_string =
+				e.into_iter().map(|e| format!("at {:?}: ", e)).collect::<Vec<_>>().join("\n");
 			DeckError::Parse(error_string)
 		})
 	}

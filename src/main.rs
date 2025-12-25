@@ -1,10 +1,9 @@
-use std::{borrow::Cow, fs, path::{self, Path, PathBuf}};
+use std::{borrow::Cow, path::{Path, PathBuf}};
 
 use eyre::{Context, Result, eyre};
-use flash::{self, change_resolver::resolve_changes, change_router::determine_changes, deck_locator::{find_deck_directory, scan_deck_contents}, model_loader, parse::ImportExpander, print_note_debug, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
-use fs_err::write;
+use flash::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::find_deck_directory, parse::ImportExpander, types::{deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
 use gix::{Commit, object::tree::Entry};
-use opentelemetry::trace::{Tracer, TracerProvider as _};
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_stdout::SpanExporter;
 use tracing::{info, instrument, warn};
@@ -51,12 +50,6 @@ fn main() -> Result<()> {
 	drop(history);
 
 	deck.cards = static_cards;
-
-	let out: CrowdAnkiEntity = deck.into();
-
-	let out = sonic_rs::serde::to_string(&out)?;
-
-	write("flash.json", out)?;
 
 	info!("Deck parsing completed");
 	Ok(())
