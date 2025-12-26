@@ -1,5 +1,6 @@
 use std::{borrow::Cow, path::PathBuf};
 
+use evalexpr::Node;
 use semver::Version;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -59,9 +60,10 @@ pub struct NoteModel {
 	// The field to sort around
 	pub sort_field: Option<String>,
 	pub tags:       Option<Vec<String>>,
+
 	// The required fields are determined at runtime, this String holds a boolean expression that
 	// affirms this.
-	// pub required: Node,
+	pub required: Node,
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, Clone, PartialEq)]
