@@ -135,12 +135,9 @@ impl<'b> super::Deck<'b> {
 		// exists, models and content exist, so the references in cards remain valid
 		// for the lifetime 'b of the Deck.
 		let cards = unsafe {
-			// Create cards with an arbitrary lifetime
-			let models_ref: &[NoteModel] = &models;
-			let content_ref: &[String] = &content;
-
 			// Process with temporary lifetime
-			let temp_cards = process_card_history(models_ref, content_ref, &backing_vcs, &history)?;
+			let temp_cards =
+				process_card_history(models.as_ref(), content.as_ref(), &backing_vcs, &history)?;
 
 			// Transmute to the target lifetime 'b
 			// This is safe because we're about to move models and content into the Deck,
@@ -149,19 +146,7 @@ impl<'b> super::Deck<'b> {
 		};
 
 		info!("Deck initialized successfully");
-		Ok(Self { models, backing_vcs, cards, configuration, content })
-	}
-
-	#[instrument(skip(backing_vcs))]
-	pub fn new(
-		models: Vec<NoteModel>,
-		backing_vcs: Repository,
-		cards: Vec<Identified<Note<'b>>>,
-		configuration: DeckConfig,
-		content: Vec<String>,
-	) -> Self {
-		info!("Creating deck with {} models", models.len());
-		Self { models, backing_vcs, cards, configuration, content }
+		Ok(Self { models, backing_vcs, cards, configuration })
 	}
 
 	#[instrument(skip(self))]
