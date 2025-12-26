@@ -417,9 +417,14 @@ where
 			let notes: Vec<Note> = notes_data
 				.into_iter()
 				.filter_map(|(tags, fields)| {
+					let mut context = HashMapContext::<DefaultNumericTypes>::new();
+
 					// Validate fields against model (with alias resolution)
 					for field in &fields {
 						let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+												// Setting the fields provided to true within the evaluation context
+					eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
+
 
 						if !model.fields.iter().any(|f| &f.name == resolved_name) {
 							emitter.emit(Rich::custom(
@@ -428,6 +433,12 @@ where
 							));
 							return None;
 						}
+					}
+
+					let evaluation_result = model.required.eval_with_context(&context);
+
+					if evaluation_result == Ok(Value::from(true)) {
+						dbg!("yay");
 					}
 
 					Some(
