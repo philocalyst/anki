@@ -39,25 +39,7 @@ fn main() -> Result<()> {
 
 	let deck = Deck::from(deck_path)?;
 
-	// Generating against the initial point of creation for the file, taking into
-	// account renames. This should keep things stable as long as the git repo is
-	// the token of trade
-	let history = deck.get_file_history("index.flash").wrap_err("Failed to get file history")?;
-
-	// Store all content strings so they live long enough
-	let all_contents: Vec<String> =
-		history.iter().map(|(entry, _)| get_content(&deck, entry)).collect::<Result<Vec<_>>>()?;
-
-	let static_cards = process_card_history(&deck, &history, &all_contents)?;
-
-	let mut deck2 = deck.clone();
-
-	// Done with history
-	drop(history);
-
-	deck2.cards = static_cards;
-
-	let out: CrowdAnkiEntity = deck2.into();
+	let out: CrowdAnkiEntity = deck.into();
 
 	let out = sonic_rs::serde::to_string(&out)?;
 
