@@ -82,11 +82,12 @@ pub fn determine_changes<'b>(
 		let mut reorderings = HashSet::new();
 		for ((idx1, card1), (_, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
 			if *card1 != *card2
-				&& let Some(idx2) = deck_2.iter().position(|cur| cur == card1) {
-					// Track where each card moved from -> to
-					let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
-					reorderings.insert(swap);
-				}
+				&& let Some(idx2) = deck_2.iter().position(|cur| cur == card1)
+			{
+				// Track where each card moved from -> to
+				let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
+				reorderings.insert(swap);
+			}
 		}
 		Ok(Some(Transforms::Reorders(reorderings)))
 	} else {

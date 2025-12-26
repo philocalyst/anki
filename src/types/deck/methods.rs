@@ -1,5 +1,6 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{fs, mem, path::{Path, PathBuf}};
 
+use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{Parser, input::Input, span::SimpleSpan};
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use logos::Logos;
@@ -142,7 +143,7 @@ impl<'b> super::Deck<'b> {
 			// Transmute to the target lifetime 'b
 			// This is safe because we're about to move models and content into the Deck,
 			// and the cards will be moved along with them
-			std::mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'b>>>>(temp_cards)
+			mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'b>>>>(temp_cards)
 		};
 
 		info!("Deck initialized successfully");
@@ -176,10 +177,22 @@ impl<'b> super::Deck<'b> {
 		let token_stream = chumsky::input::Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
 
 		// Parse the stream using the refactored flash parser
-		flash(models).parse(token_stream).into_result().map_err(|e| {
-			let error_string =
-				e.into_iter().map(|e| format!("at {:?}: ", e)).collect::<Vec<_>>().join("\n");
-			DeckError::Parse(error_string)
+		flash(models).parse(token_stream).into_result().map_err(|errors| {
+			for err in errors {
+				Report::build(ReportKind::Error, ((), err.span().into_range()))
+					.with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
+					.with_code(3)
+					.with_message(err.to_string())
+					.with_label(
+						Label::new(((), err.span().into_range()))
+							.with_message(err.reason().to_string())
+							.with_color(Color::Red),
+					)
+					.finish()
+					.eprint(Source::from(content))
+					.unwrap();
+			}
+			DeckError::Parse("".to_string())
 		})
 	}
 
