@@ -379,9 +379,11 @@ where
 				Some,
 			)
 		})
-		.then_ignore(noise())
 		// Parse aliases ONCE after model declaration
-		.then(alias_declaration().then_ignore(noise()).repeated().collect::<Vec<_>>())
+		.then(alias_declaration()
+        .padded_by(noise().repeated()) // Handle noise around each alias
+        .repeated()
+        .collect::<Vec<_>>())
 		.then_ignore(noise().repeated())
 }
 
@@ -396,7 +398,14 @@ where
 	// Parse a model declaration followed by aliases, then one or more notes
 	let model_section = intro(available_models)
 		// Then parse multiple notes
-		.then(note().padded_by(noise().repeated().at_least(1)).repeated().at_least(1).collect())
+		.then(
+        note()
+            // Ensure we handle the noise BETWEEN notes
+            .padded_by(noise().repeated()) 
+            .repeated()
+            .at_least(1)
+            .collect()
+    )
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
