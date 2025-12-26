@@ -434,10 +434,13 @@ where
 						}
 					}
 
-					let evaluation_result = model.required.eval_with_context(&context);
-
-					if evaluation_result == Ok(Value::from(true)) {
-						dbg!("yay");
+					// Check against the field constraints
+					let has_met_field_constraitns = model.required.eval_with_context(&context);
+					if has_met_field_constraitns == Ok(Value::from(false)) {
+						emitter.emit(Rich::custom(
+								span,
+								format!("The provided fields don't meet model {}'s requirements", model.name),
+						));
 					}
 
 					Some(
