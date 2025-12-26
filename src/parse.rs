@@ -312,30 +312,6 @@ where
 
 // Note Builder
 
-/// Merges adjacent Text elements to reduce fragmentation
-fn merge_adjacent_text(elements: Vec<TextElement>) -> Vec<TextElement> {
-	let mut merged = Vec::new();
-	let mut text_buffer = String::new();
-
-	for element in elements {
-		match element {
-			TextElement::Text(text) => text_buffer.push_str(&text),
-			cloze @ TextElement::Cloze(_) => {
-				if !text_buffer.is_empty() {
-					merged.push(TextElement::Text(std::mem::take(&mut text_buffer)));
-				}
-				merged.push(cloze);
-			}
-		}
-	}
-
-	if !text_buffer.is_empty() {
-		merged.push(TextElement::Text(text_buffer));
-	}
-
-	merged
-}
-
 /// Build a note from parsed components
 struct NoteComponents<'m> {
 	model:   &'m NoteModel,
