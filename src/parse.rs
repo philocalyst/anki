@@ -418,11 +418,14 @@ where
 				.filter_map(|(tags, fields)| {
 					let mut context = HashMapContext::<DefaultNumericTypes>::new();
 
+
 					// Validate fields against model (with alias resolution)
 					for field in &fields {
 						let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
 												// Setting the fields provided to true within the evaluation context
 					eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
+
+
 
 
 						if !model.fields.iter().any(|f| &f.name == resolved_name) {
@@ -434,9 +437,11 @@ where
 						}
 					}
 
+
 					// Check against the field constraints
-					let has_met_field_constraitns = model.required.eval_with_context(&context);
-					if has_met_field_constraitns == Ok(Value::from(false)) {
+					let has_met_field_constraints = model.required.eval_with_context(&context);
+
+					if has_met_field_constraints.is_err() || has_met_field_constraints == Ok(Value::from(false)) {
 						emitter.emit(Rich::custom(
 								span,
 								format!("The provided fields don't meet model {}'s requirements", model.name),
