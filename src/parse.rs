@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 
 use chumsky::{input::ValueInput, prelude::*};
+use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
 
 use crate::types::note::{Cloze, Note, NoteField, NoteModel, TextElement};
@@ -399,13 +400,11 @@ where
 	let model_section = intro(available_models)
 		// Then parse multiple notes
 		.then(
-        note()
-            // Ensure we handle the noise BETWEEN notes
-            .padded_by(noise().repeated()) 
-            .repeated()
-            .at_least(1)
-            .collect()
-    )
+            note()
+                .separated_by(noise().repeated().at_least(1))
+                .at_least(1)
+                .collect::<Vec<RawNote>>()
+        )
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
