@@ -68,6 +68,30 @@ impl ImportExpander {
 
 type Span = SimpleSpan;
 
+use std::fmt;
+
+impl<'a> fmt::Display for Token<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Eq => write!(f, "="),
+			Self::Colon => write!(f, ":"),
+			Self::LBracket => write!(f, "["),
+			Self::RBracket => write!(f, "]"),
+			Self::LBrace => write!(f, "{{"),
+			Self::RBrace => write!(f, "}}"),
+			Self::Pipe => write!(f, "|"),
+			Self::Comma => write!(f, ","),
+			Self::Alias => write!(f, "alias"),
+			Self::To => write!(f, "to"),
+			Self::Newline => write!(f, "\\n"),
+			Self::WS(s) => write!(f, "{}", s),
+			Self::Text(s) => write!(f, "{}", s),
+			Self::Comment(s) => write!(f, "{}", s),
+			Self::Error => write!(f, "<parse error>"),
+		}
+	}
+}
+
 #[derive(Logos, Clone, Debug, PartialEq)]
 pub enum Token<'a> {
 	#[token("=")]
