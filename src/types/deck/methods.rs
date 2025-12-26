@@ -43,6 +43,25 @@ impl<'b> super::Deck<'b> {
 		let configuration: DeckConfig = toml::from_str(&config_content)?;
 
 		let cards = Vec::new();
+		// SAFETY: We use unsafe here to work around Rust's self-referential struct
+		// limitations. The cards will contain references to models and content. We
+		// construct the cards first with a temporary lifetime, then move everything
+		// into the Deck together. The safety invariant is: as long as the Deck
+		// exists, models and content exist, so the references in cards remain valid
+		// for the lifetime 'b of the Deck.
+		let cards = unsafe {
+			// Create cards with an arbitrary lifetime
+			let models_ref: &[NoteModel] = &models;
+			let content_ref: &[String] = &content;
+
+			// Process with temporary lifetime
+			let temp_cards = process_card_history(models_ref, content_ref, &backing_vcs, &history)?;
+
+			// Transmute to the target lifetime 'b
+			// This is safe because we're about to move models and content into the Deck,
+			// and the cards will be moved along with them
+			std::mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'b>>>>(temp_cards)
+		};
 
 		info!("Deck initialized successfully");
 		Ok(Self { models, backing_vcs, cards, configuration })
