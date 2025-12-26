@@ -151,6 +151,7 @@ where
 			Token::Comment(_) => (),
 			Token::WS(_) => (),
 	}
+	.labelled("newline, comment, or whitespace")
 	.ignored()
 }
 
@@ -419,7 +420,7 @@ where
 	// Parse a model declaration followed by aliases, then one or more notes
 	let model_section = intro(available_models)
 		// Then parse multiple notes
-		.then(note().padded_by(noise().repeated()).repeated().at_least(1).collect())
+		.then(note().padded_by(noise().repeated().at_least(1)).repeated().at_least(1).collect())
 		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
 			let model = model_opt?;
 			let span = extra.span();
