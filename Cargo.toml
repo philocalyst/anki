@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 ariadne = "0.5.1"
-chumsky = "0.10.1"
+chumsky = "1.0.0-alpha.8"
 color-eyre = "0.6.5"
 evalexpr = { path = "./evalexpr", features = ["serde"]}
 eyre = "0.6.12"
