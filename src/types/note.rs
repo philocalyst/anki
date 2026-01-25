@@ -66,6 +66,28 @@ pub struct NoteModel {
 	pub required: Node,
 }
 
+impl Default for NoteModel {
+	fn default() -> Self {
+		Self {
+			name:           String::from("Default Model"),
+			id:             Uuid::new_v4(),
+			templates:      Vec::new(),
+			// semver::Version doesn't have Default. 0.1.0 is the standard starting point.
+			schema_version: Version::new(0, 1, 0),
+			defaults:       None,
+			css:            String::new(),
+			fields:         Vec::new(),
+			latex_pre:      None,
+			latex_post:     None,
+			sort_field:     None,
+			tags:           None,
+			// evalexpr::Node doesn't have Default.
+			// Parsing "true" ensures validation passes if no constraints are set.
+			required:       evalexpr::build_operator_tree("true").unwrap(),
+		}
+	}
+}
+
 #[derive(Debug, Ord, PartialOrd, Eq, Clone, PartialEq)]
 pub struct Cloze {
 	pub id:     u32,
