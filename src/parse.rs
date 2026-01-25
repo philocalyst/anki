@@ -3,8 +3,10 @@ use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
+use semver::Version;
+use uuid::Uuid;
 
-use crate::types::note::{Cloze, Note, NoteField, NoteModel, TextElement};
+use crate::types::{deck::Deck, note::{Cloze, Field, Note, NoteField, NoteModel, TextElement}};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
@@ -78,6 +80,8 @@ impl<'a> fmt::Display for Token<'a> {
 			Self::Colon => write!(f, ":"),
 			Self::LBracket => write!(f, "["),
 			Self::RBracket => write!(f, "]"),
+			Self::LParen => write!(f, "("),
+			Self::RParen => write!(f, ")"),
 			Self::LBrace => write!(f, "{{"),
 			Self::RBrace => write!(f, "}}"),
 			Self::Pipe => write!(f, "|"),
@@ -113,6 +117,12 @@ pub enum Token<'a> {
 	#[token("}")]
 	RBrace,
 
+	#[token("(")]
+	LParen,
+
+	#[token(")")]
+	RParen,
+
 	#[token("|")]
 	Pipe,
 
@@ -131,7 +141,7 @@ pub enum Token<'a> {
 	#[regex(r"[ \t]+")]
 	WS(&'a str),
 
-	#[regex(r"[^ \t\n:=\[\]{},|]+", priority = 4)]
+	#[regex(r"[^ \t\n:=\[\](){},|]+", priority = 4)]
 	Text(&'a str),
 
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
@@ -280,6 +290,8 @@ where
 		Token::Eq => "=",
 		Token::LBracket => "[",
 		Token::RBracket => "]",
+		Token::LParen => "(",
+		Token::RParen => ")",
 		Token::Colon => ":",
 	};
 
@@ -292,23 +304,23 @@ where
 
 	let content_element = cloze().or(merged_text);
 
-	content_element.repeated().collect()
+	content_element.repeated().collect().labelled("field content")
 }
 
-/// Parse field: Name: Content
 fn field_declaration<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, NoteField, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	text()
+	just(Token::LParen)
+		.ignore_then(text())
 		.map(|s| s.to_string())
-		.then_ignore(just(Token::Colon))
-		.then_ignore(ws().repeated())
+		.then_ignore(just(Token::RParen))
+		.then_ignore(noise().repeated().at_least(1))
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
 		.then_ignore(noise())
-		.labelled("field")
+		.labelled("field declaration")
 }
 
 // Note Builder
@@ -380,11 +392,13 @@ where
 				Some,
 			)
 		})
-		// Parse aliases ONCE after model declaration
-		.then(alias_declaration()
-        .padded_by(noise().repeated()) // Handle noise around each alias
-        .repeated()
-        .collect::<Vec<_>>())
+		// Parse aliases with explicit noise handling
+		.then(
+            noise().repeated()
+            .ignore_then(alias_declaration())
+            .repeated()
+            .collect::<Vec<_>>()
+        )
 		.then_ignore(noise().repeated())
 }
 
@@ -471,4 +485,49 @@ where
 		.collect::<Vec<Vec<Note>>>()
 		.map(|v| v.into_iter().flatten().collect())
 		.then_ignore(end())
+}
+
+fn mock_model() -> NoteModel {
+	NoteModel {
+		name:           "Basic".to_string(),
+		id:             Uuid::new_v4(),
+		templates:      vec![],
+		schema_version: Version::new(1, 0, 0),
+		defaults:       None,
+		css:            "".to_string(),
+		fields:         vec![
+			Field { name: "Front".into(), sticky: None, associated_media: None },
+			Field { name: "Back".into(), sticky: None, associated_media: None },
+		],
+		latex_pre:      None,
+		latex_post:     None,
+		sort_field:     None,
+		tags:           None,
+		// Requirement: Front must be present
+		required:       evalexpr::build_operator_tree("Front").unwrap(),
+	}
+}
+#[test]
+fn test_alias_and_multiple_notes() {
+	let models = vec![mock_model()];
+	let input = r#"
+= Basic =
+alias Front to f
+alias Back to b
+
+-Front-
+	What is Rust?
+-Back-
+	A systems programming language.
+
+{f} Is it fast?
+{b} Yes.
+"#;
+
+	let notes = Deck::parse_cards(&models, input).expect("Should parse successfully");
+
+	assert_eq!(notes.len(), 2);
+	assert_eq!(notes[0].fields[0].name, "Front");
+	assert_eq!(notes[0].fields[0].content[0], TextElement::Text("What is Rust?".to_string()));
+	assert_eq!(notes[1].fields[0].name, "Front");
 }
