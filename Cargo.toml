@@ -7,7 +7,7 @@ edition = "2024"
 ariadne = "0.5.1"
 chumsky = "1.0.0-alpha.8"
 color-eyre = "0.6.5"
-evalexpr = { path = "./evalexpr", features = ["serde"]}
+evalexpr = { git = "https://github.com/philocalyst/evalexpr", features = ["serde"]}
 eyre = "0.6.12"
 fs-err = "3.1.1"
 gix = "0.74.1"
