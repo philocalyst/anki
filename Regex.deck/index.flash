@@ -1,0 +1,13 @@
+= Basic =
+alias Question to Q
+alias Answer to A
+
+(Q) What is the most basic of regular expressions?
+(A) The single literal character, which matches the first occurence of it in a string.
+
+(Q) By default, regex engines match how many times?
+(A) Once, the first. But for convenience, many iterate through every match.
+
+(Q) How to match unicode characters if it's not supported in the syntax?
+(A) Use \xFF to match a character by its hexadecimal index in the character set.
+
