@@ -281,33 +281,19 @@ fn field_content<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	let text_chars = select! {
-			Token::Text(s) => s,
-			Token::WS(s) => s,
-			Token::Comment(s) => s,
-			Token::Alias => "alias",
-			Token::To => "to",
-			Token::Eq => "=",
-			Token::Colon => ":",
-			Token::Comma => ",",
-			Token::Pipe => "|",
-			Token::LBracket => "[",
-			Token::RBracket => "]",
-			Token::LBrace => "{",
-			Token::RBrace => "}",
-			Token::LParen => "(",
-			Token::RParen => ")",
-			Token::Newline => "\n",
-	};
+	// Parse a single token as text, but reject structural tokens
+	let text_token = any()
+		.filter(|t: &Token| {
+			!matches!(
+				t,
+				Token::LParen |   // Start of another field
+			Token::LBracket | // Start of tags
+			Token::Eq // Start of model
+			)
+		})
+		.map(|t: Token| TextElement::Text(t.to_string()));
 
-	// Collect consecutive text tokens into a Vec, then join into a single string
-	let merged_text = text_chars
-		.repeated()
-		.at_least(1)
-		.collect::<Vec<_>>()
-		.map(|parts| TextElement::Text(parts.join("")));
-
-	let content_element = cloze().or(merged_text);
+	let content_element = cloze().or(text_token);
 
 	content_element.repeated().collect().labelled("field content")
 }

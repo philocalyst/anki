@@ -6,29 +6,19 @@ use gix::{Commit, object::tree::Entry};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_stdout::SpanExporter;
-use tracing::{info, instrument, warn};
-use tracing_subscriber::{Registry, fmt::{self, time::ChronoUtc}, prelude::__tracing_subscriber_SubscriberExt};
+use tracing::{info, instrument::{self, WithSubscriber}, warn};
+use tracing_subscriber::{EnvFilter, Registry, fmt::{self, time::ChronoUtc}, prelude::__tracing_subscriber_SubscriberExt};
 use uuid::Uuid;
 
-pub fn init_opentelemetry_tracing() {
-	// Create a new OpenTelemetry trace pipeline that prints to stdout
-	let provider = SdkTracerProvider::builder().with_simple_exporter(SpanExporter::default()).build();
-	let tracer = provider.tracer("readme_example");
+pub fn init_tracing() {
+	// Uses RUST_LOG if set; otherwise default to info.
+	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
 
-	// Create a tracing layer with the configured OpenTelemetry tracer
-	let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
-	let fmt_layer =
-		fmt::layer().with_target(false).with_timer(ChronoUtc::new("Sec.%S.Nanos.%f".to_string()));
-
-	let subscriber = Registry::default()
-        .with(telemetry_layer) // OpenTelemetry layer
-        .with(fmt_layer); // Formatted console output layer
+	tracing_subscriber::fmt().with_env_filter(filter).with_target(false).compact().init();
 }
 
-#[instrument]
 fn main() -> Result<()> {
-	init_opentelemetry_tracing();
+	init_tracing();
 	color_eyre::install()?;
 
 	info!("Starting Anki deck parser");
