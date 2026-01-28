@@ -310,7 +310,7 @@ where
 		.then_ignore(noise().repeated().at_least(1))
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
-		.then_ignore(noise())
+		.then_ignore(noise().or_not())
 		.labelled("field declaration")
 }
 
