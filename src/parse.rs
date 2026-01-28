@@ -282,17 +282,22 @@ where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
 	let text_chars = select! {
-		Token::Text(s) => s,
-		Token::WS(s) => s,
-		Token::Alias => "alias",
-		Token::To => "to",
-		Token::Comma => ",",
-		Token::Eq => "=",
-		Token::LBracket => "[",
-		Token::RBracket => "]",
-		Token::LParen => "(",
-		Token::RParen => ")",
-		Token::Colon => ":",
+			Token::Text(s) => s,
+			Token::WS(s) => s,
+			Token::Comment(s) => s,
+			Token::Alias => "alias",
+			Token::To => "to",
+			Token::Eq => "=",
+			Token::Colon => ":",
+			Token::Comma => ",",
+			Token::Pipe => "|",
+			Token::LBracket => "[",
+			Token::RBracket => "]",
+			Token::LBrace => "{",
+			Token::RBrace => "}",
+			Token::LParen => "(",
+			Token::RParen => ")",
+			Token::Newline => "\n",
 	};
 
 	// Collect consecutive text tokens into a Vec, then join into a single string
