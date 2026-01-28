@@ -1,7 +1,7 @@
 use std::{fs, mem, path::{Path, PathBuf}};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{Parser, input::Input, span::SimpleSpan};
+use chumsky::{Parser, input::{Input, Stream}, span::SimpleSpan};
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
@@ -174,7 +174,7 @@ impl<'b> super::Deck<'b> {
 		// Turn the iterator into a Chumsky-compatible stream
 		// We provide a zero-width span at the end of the content for EOI (End Of Input)
 		let eoi = SimpleSpan::from(content.len()..content.len());
-		let token_stream = chumsky::input::Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
+		let token_stream = Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
 
 		// Parse the stream using the refactored flash parser
 		flash(models).parse(token_stream).into_result().map_err(|errors| {
