@@ -8,6 +8,54 @@ alias Answer to A
 (Q) By default, regex engines match how many times?
 (A) Once, the first. But for convenience, many iterate through every match.
 
+
 (Q) How to match unicode characters if it's not supported in the syntax?
 (A) Use \xFF to match a character by its hexadecimal index in the character set.
 
+(Q) A character class matches?
+(A) Only one out of several characters, it's a choice branch. gr[ae]y matches either gray or grey.
+
+(Q) Within character classes, how do you match a range of characters?
+(A) With a dash joining two points (increasing) of the set. They can be compounded by placing more next to another.
+
+(Q) Character sets can include?
+(A) Ranges, single characters, or BOTH.
+
+(Q) You can negate character classes by?
+(A) Using a caret after the opening square bracket.
+
+(Q) \d matches?
+(A) A single character that's a digit. Usually includes many different writing systems.
+
+(Q) \w matches?
+(A) A word character (alphanumeric including underscore)
+
+(Q) \b matches?
+(A) At a word boundary, which is anything in-between a character that can be matched by \w and a character that cannot be matched by \w.
+
+(Q) What is alternation?
+(A) The regular expression equivalent of "or"
+
+(Q) The question mark makes?
+(A) The preceding token optional. colou?r matches colour or color.
+
+(Q) An asterisk tells the engine?
+(A) To attempt to match the preceding token zero or more times.
+
+(Q) What is the practical reason to use *?
+(A) For dealing with optional structures, like unrequired whitespace. BUT where the amount of the optional is irrelevant (like a ton of space). 
+
+(Q) Parentheses create?
+(A) A capturing group.
+
+(Q) Back reference \1 matches? 
+(A) The same text matched by the capturing group it corresponds to. (So the first one in this case)
+
+(Q) The question mark makes?
+(A) The preceding token optional, runs if it exists, or if it doesn't, but doesn't match more than once.
+
+(Q) A plus tells the engine?
+(A) To attempt to match the preceding token once or more?
+
+(Q) The dot matches?
+(A) Any single character, EXCEPT line break characters.
