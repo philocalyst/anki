@@ -249,6 +249,7 @@ where
 }
 
 /// Parse cloze: {Answer|Hint}
+/// Parse cloze: {Answer|Hint} or just { if incomplete
 fn cloze<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, TextElement, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
@@ -264,15 +265,17 @@ where
 	};
 
 	let cloze_part = cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
-
 	let hint = just(Token::Pipe).ignore_then(cloze_part).map(|s| s.trim().to_string()).or_not();
 
-	just(Token::LBrace)
+	// Try complete cloze pattern with closing brace
+	let complete_cloze = just(Token::LBrace)
 		.ignore_then(cloze_part.map(|s| s.trim().to_string()))
 		.then(hint)
 		.then_ignore(just(Token::RBrace))
-		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }))
-		.labelled("cloze")
+		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
+
+	// If complete pattern fails, just treat { as literal text
+	complete_cloze.or(just(Token::LBrace).to(TextElement::Text("{".to_string()))).labelled("cloze")
 }
 
 /// Parse field content (text and clozes)
@@ -281,21 +284,24 @@ fn field_content<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	// Parse a single token as text, but reject structural tokens
+	// Parse a single token as text, only rejecting model declarations
 	let text_token = any()
 		.filter(|t: &Token| {
-			!matches!(
-				t,
-				Token::LParen |   // Start of another field
-			Token::LBracket | // Start of tags
-			Token::Eq // Start of model
-			)
+			!matches!(t, Token::Eq) // Only stop at model declarations
 		})
 		.map(|t: Token| TextElement::Text(t.to_string()));
 
 	let content_element = cloze().or(text_token);
 
-	content_element.repeated().collect().labelled("field content")
+	// Use repeated_until to consume content until we see the start of a new field
+	// A new field starts with: noise (including newlines) + '(' + text + ')'
+	let new_field_start = noise().repeated().at_least(1).then_ignore(just(Token::LParen).rewind());
+
+	content_element
+		.repeated()
+		.collect()
+		.then_ignore(new_field_start.or_not())
+		.labelled("field content")
 }
 
 fn field_declaration<'tokens, 'src: 'tokens, I>()
@@ -348,9 +354,12 @@ fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	tags_declaration()
-		.or_not() // It's optional whether we have tags or not
-		.then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
+	tags_declaration().or_not().then(
+		field_declaration()
+			.separated_by(noise().repeated().at_least(1))
+			.at_least(1)
+			.collect::<Vec<_>>(),
+	)
 }
 
 type AliasPairs = Vec<(String, String)>;
