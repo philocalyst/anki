@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use tracing::instrument;
+use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
 use crate::{error::DeckError, types::{crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, TextElement}}};
@@ -14,23 +14,25 @@ pub trait Identifiable: Sized {
 
 impl super::note::NoteModel {
 	pub fn complete(&mut self, dir: &Path) -> Result<(), DeckError> {
-		// Load CSS if present
 		let css_path = dir.join("style.css");
 		if css_path.exists() {
+			debug!("Loading CSS");
 			self.css = fs::read_to_string(css_path)?;
 		}
 
-		// Load LaTeX pre/post if present
 		let pre_path = dir.join("pre.tex");
 		if pre_path.exists() {
+			debug!("Loading pre TEX");
 			self.latex_pre = Some(fs::read_to_string(pre_path)?);
 		}
 
 		let post_path = dir.join("post.tex");
 		if post_path.exists() {
+			debug!("Loading post TEX");
 			self.latex_post = Some(fs::read_to_string(post_path)?);
 		}
 
+		info!("Loading templates");
 		// Load templates from .hbs files
 		let mut templates = Vec::new();
 		for entry in fs::read_dir(dir)? {
