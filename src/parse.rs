@@ -284,24 +284,13 @@ fn field_content<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	// Parse a single token as text, only rejecting model declarations
 	let text_token = any()
-		.filter(|t: &Token| {
-			!matches!(t, Token::Eq) // Only stop at model declarations
-		})
+		.filter(|t: &Token| !matches!(t, Token::Eq))
 		.map(|t: Token| TextElement::Text(t.to_string()));
 
 	let content_element = cloze().or(text_token);
 
-	// Use repeated_until to consume content until we see the start of a new field
-	// A new field starts with: noise (including newlines) + '(' + text + ')'
-	let new_field_start = noise().repeated().at_least(1).then_ignore(just(Token::LParen).rewind());
-
-	content_element
-		.repeated()
-		.collect()
-		.then_ignore(new_field_start.or_not())
-		.labelled("field content")
+	content_element.repeated().collect().labelled("field content")
 }
 
 fn field_declaration<'tokens, 'src: 'tokens, I>()
@@ -309,14 +298,14 @@ fn field_declaration<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	just(Token::LParen)
+	noise().repeated() // Consume noise before field declaration
+		.ignore_then(just(Token::LParen))
 		.ignore_then(text())
 		.map(|s| s.to_string())
 		.then_ignore(just(Token::RParen))
-		.then_ignore(noise().repeated().at_least(1))
+		.then_ignore(ws().repeated()) // Whitespace after field name
 		.then(field_content())
 		.map(|(name, content)| NoteField { name, content })
-		.then_ignore(noise().or_not())
 		.labelled("field declaration")
 }
 
@@ -354,12 +343,7 @@ fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	tags_declaration().or_not().then(
-		field_declaration()
-			.separated_by(noise().repeated().at_least(1))
-			.at_least(1)
-			.collect::<Vec<_>>(),
-	)
+	tags_declaration().or_not().then(field_declaration().repeated().at_least(1).collect::<Vec<_>>())
 }
 
 type AliasPairs = Vec<(String, String)>;
