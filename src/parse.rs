@@ -299,8 +299,7 @@ fn field_declaration<'tokens, 'src: 'tokens, I>()
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
-	noise().repeated() // Consume noise before field declaration
-		.ignore_then(just(Token::LParen))
+	just(Token::LParen)
 		.ignore_then(text())
 		.map(|s| s.to_string())
 		.then_ignore(just(Token::RParen))
