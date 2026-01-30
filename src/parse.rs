@@ -398,68 +398,63 @@ where
 	let model_section = intro(available_models)
 		// Then parse multiple notes
 		.then(
-            note()
+	        note()
                 .separated_by(noise().repeated().at_least(1))
-                .at_least(1)
+	            .at_least(1)
                 .collect::<Vec<RawNote>>()
         )
-		.validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
-			let model = model_opt?;
-			let span = extra.span();
+        .validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
+	let model = model_opt?;
+	let span = extra.span();
+	// Build alias map once for all notes
+	let alias_map: HashMap<_, _> =
+		aliases.into_iter().map(|(from, to)| (to, from)).collect();
 
-			// Build alias map once for all notes
-			let alias_map: HashMap<_, _> =
-				aliases.into_iter().map(|(from, to)| (to, from)).collect();
+	let notes: Vec<Note> = notes_data
+		.into_iter()
+		.filter_map(|(tags, fields)| {
+			let mut context = HashMapContext::<DefaultNumericTypes>::new();
 
-			let notes: Vec<Note> = notes_data
-				.into_iter()
-				.filter_map(|(tags, fields)| {
-					let mut context = HashMapContext::<DefaultNumericTypes>::new();
+			// Initialize all model fields to false
+			for model_field in &model.fields {
+				eval_empty_with_context_mut(&format!("{} = false", model_field.name), &mut context).unwrap();
+			}
 
-
-					// Validate fields against model (with alias resolution)
-					for field in &fields {
-						let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
-												// Setting the fields provided to true within the evaluation context
-					eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
-
-
-
-
-						if !model.fields.iter().any(|f| &f.name == resolved_name) {
-							emitter.emit(Rich::custom(
-								span,
-								format!("Field '{}' not found in model '{}'", field.name, model.name),
-							));
-							return None;
-						}
-					}
-
-
-					// Check against the field constraints
-					let has_met_field_constraints = model.required.eval_with_context(&context);
-
-					if has_met_field_constraints.is_err() || has_met_field_constraints == Ok(Value::from(false)) {
-						emitter.emit(Rich::custom(
-								span,
-								format!("The provided fields don't meet model {}'s requirements", model.name),
-						));
-					}
-
-					Some(
-						NoteComponents {
-							model,
-							aliases: alias_map.clone(), // Clone the shared alias map
-							tags: tags.unwrap_or_default(),
-							fields,
-						}
-						.into_note(),
-					)
-				})
-				.collect();
-
-			Some(notes)
+			// Validate fields against model (with alias resolution)
+			for field in &fields {
+				let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+				// Setting the fields provided to true within the evaluation context
+				eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
+				if !model.fields.iter().any(|f| &f.name == resolved_name) {
+					emitter.emit(Rich::custom(
+						span,
+						format!("Field '{}' not found in model '{}'", field.name, model.name),
+					));
+					return None;
+				}
+			}
+			// Check against the field constraints
+			let has_met_field_constraints = model.required.eval_with_context(&context);
+			dbg!(&model.required, &context);
+			if has_met_field_constraints.is_err() || has_met_field_constraints == Ok(Value::from(false)) {
+				emitter.emit(Rich::custom(
+						span,
+						format!("The provided fields don't meet model {}'s requirements", model.name),
+				));
+			}
+			Some(
+				NoteComponents {
+					model,
+					aliases: alias_map.clone(), // Clone the shared alias map
+					tags: tags.unwrap_or_default(),
+					fields,
+				}
+				.into_note(),
+			)
 		})
+		.collect();
+	Some(notes)
+})
 		.try_map(|opt, span| opt.ok_or_else(|| Rich::custom(span, "Invalid note structure")))
 		.recover_with(skip_then_retry_until(any().ignored(), noise().ignored()));
 
