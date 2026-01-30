@@ -286,6 +286,7 @@ where
 {
 	let text_token = any()
 		.filter(|t: &Token| !matches!(t, Token::Eq))
+		.filter(|t: &Token| !matches!(t, Token::Newline))
 		.map(|t: Token| TextElement::Text(t.to_string()));
 
 	let content_element = cloze().or(text_token);
