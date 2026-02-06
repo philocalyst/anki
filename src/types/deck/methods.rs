@@ -316,8 +316,7 @@ fn process_card_history<'a>(
 
 	let first_cards = parse_cards_from_content(models, &content[0])?;
 
-	// Blankly initialize, as we immediately overwrite
-	let mut bygone_cards = Vec::with_capacity(first_cards.len());
+	let mut bygone_cards = first_cards.clone();
 
 	let mut elder_cards =
 		initialize_cards(models, backing_vcs, first_entry, first_commit, first_cards)?;
