@@ -285,7 +285,6 @@ where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
 	let text_token = any()
-		.filter(|t: &Token| !matches!(t, Token::Eq))
 		.filter(|t: &Token| !matches!(t, Token::Newline))
 		.map(|t: Token| TextElement::Text(t.to_string()));
 
@@ -304,7 +303,7 @@ where
 		.map(|s| s.to_string())
 		.then_ignore(just(Token::RParen))
 		.then_ignore(ws().repeated()) // Whitespace after field name
-		.then(field_content())
+		.then(field_content()).then_ignore(just(Token::Newline)) // ignore trailing
 		.map(|(name, content)| NoteField { name, content })
 		.labelled("field declaration")
 }
@@ -435,7 +434,6 @@ where
 			}
 			// Check against the field constraints
 			let has_met_field_constraints = model.required.eval_with_context(&context);
-			dbg!(&model.required, &context);
 			if has_met_field_constraints.is_err() || has_met_field_constraints == Ok(Value::from(false)) {
 				emitter.emit(Rich::custom(
 						span,
