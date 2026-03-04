@@ -1,13 +1,35 @@
-use std::{fs, mem, path::{Path, PathBuf}};
+use std::{
+	fs, mem,
+	path::{Path, PathBuf},
+};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{Parser, input::{Input, Stream}, span::SimpleSpan};
+use chumsky::{
+	Parser,
+	input::{Input, Stream},
+	span::SimpleSpan,
+};
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::{ImportExpander, Token, flash}, types::{BEntry, crowd_anki_config::DeckConfig, deck::Deck, note::{Identified, Note, NoteModel}, note_methods::Identifiable}, uuid_generator};
+use crate::{
+	change_resolver::resolve_changes,
+	change_router::determine_changes,
+	deck_locator::scan_deck_contents,
+	error::DeckError,
+	model_loader,
+	parse::{ImportExpander, Token, flash},
+	types::{
+		BEntry,
+		crowd_anki_config::DeckConfig,
+		deck::Deck,
+		note::{Identified, Note, NoteField, NoteModel},
+		note_methods::Identifiable,
+	},
+	uuid_generator,
+};
 
 pub fn get_file_history<'a>(
 	vcs: &'a Repository,
@@ -135,7 +157,7 @@ impl<'b> super::Deck<'b> {
 		// into the Deck together. The safety invariant is: as long as the Deck
 		// exists, models and content exist, so the references in cards remain valid
 		// for the lifetime 'b of the Deck.
-		let cards = unsafe {
+		let mut cards = unsafe {
 			// Process with temporary lifetime
 			let temp_cards =
 				process_card_history(models.as_ref(), content.as_ref(), &backing_vcs, &history)?;
@@ -145,6 +167,20 @@ impl<'b> super::Deck<'b> {
 			// and the cards will be moved along with them
 			mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'b>>>>(temp_cards)
 		};
+
+		// Final check to ensure all cards have the required amount of fields
+		cards.iter_mut().for_each(|card| {
+			let ideal_field_count = card.inner.model.fields.len();
+			let current_field_count = card.inner.fields.len();
+
+			let mut difference = current_field_count - ideal_field_count;
+
+			// Difference of zero is no difference ofc
+			while difference != 0 {
+				card.inner.fields.push(NoteField::default());
+				difference = difference - 1;
+			}
+		});
 
 		info!("Deck initialized successfully");
 		Ok(Self { models, backing_vcs, cards, configuration })
