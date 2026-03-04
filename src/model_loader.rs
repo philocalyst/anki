@@ -18,10 +18,10 @@ pub fn load_models(model_paths: &[PathBuf], deck_path: &Path) -> Result<Vec<Note
 			.map_err(|_| DeckError::ModelConfigNotFound(config_path.clone()))?;
 
 		// TODO: Make errors lossless, this caused a traumatic error...
-		let mut model: NoteModel = toml::from_str(&config_content).unwrap();
+		let model: NoteModel<crate::types::note::Partial> = toml::from_str(&config_content).unwrap();
 
 		// TODO: This path should be more dynamic
-		model.complete(model_path)?;
+		let model = model.complete(model_path)?;
 
 		info!("Loaded model: {}", model.name);
 		all_models.push(model);

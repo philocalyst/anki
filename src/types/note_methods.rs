@@ -23,29 +23,35 @@ pub trait Identifiable: Sized {
 	}
 }
 
-impl super::note::NoteModel {
-	pub fn complete(&mut self, dir: &Path) -> Result<(), DeckError> {
+impl super::note::NoteModel<super::note::Partial> {
+	pub fn complete(
+		self,
+		dir: &Path,
+	) -> Result<super::note::NoteModel<super::note::Complete>, DeckError> {
+		let mut css = String::new();
 		let css_path = dir.join("style.css");
 		if css_path.exists() {
 			debug!("Loading CSS");
-			self.css = fs::read_to_string(css_path)?;
+			css = fs::read_to_string(css_path)?;
 		}
 
 		let dir_as_string = dir.to_string_lossy().to_string();
-		let name = dir_as_string.rsplit_once(".deck").unwrap().0;
+		let name = dir_as_string.rsplit_once(".deck").unwrap().0.to_string();
 
-		dbg!(name);
+		dbg!(&name);
 
+		let mut latex_pre = None;
 		let pre_path = dir.join("pre.tex");
 		if pre_path.exists() {
 			debug!("Loading pre TEX");
-			self.latex_pre = Some(fs::read_to_string(pre_path)?);
+			latex_pre = Some(fs::read_to_string(pre_path)?);
 		}
 
+		let mut latex_post = None;
 		let post_path = dir.join("post.tex");
 		if post_path.exists() {
 			debug!("Loading post TEX");
-			self.latex_post = Some(fs::read_to_string(post_path)?);
+			latex_post = Some(fs::read_to_string(post_path)?);
 		}
 
 		info!("Loading templates");
@@ -107,8 +113,20 @@ impl super::note::NoteModel {
 			}
 		}
 
-		self.templates = templates;
-		Ok(())
+		Ok(super::note::NoteModel {
+			name,
+			id: self.id,
+			templates,
+			schema_version: self.schema_version,
+			defaults: self.defaults,
+			css,
+			fields: self.fields,
+			latex_pre,
+			latex_post,
+			sort_field: self.sort_field,
+			tags: self.tags,
+			required: self.required,
+		})
 	}
 }
 
@@ -175,7 +193,7 @@ impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::N
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {
 			crowdanki_uuid: model.id.to_string(),
-			name: model.name().clone(),
+			name: model.name.clone(),
 			kind: NoteModelType::Standard,
 			flds: model
 				.fields
