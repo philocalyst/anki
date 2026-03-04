@@ -173,7 +173,12 @@ impl<'b> super::Deck<'b> {
 			let ideal_field_count = card.inner.model.fields.len();
 			let current_field_count = card.inner.fields.len();
 
-			let mut difference = current_field_count - ideal_field_count;
+			// Cover the too-many-fields case
+			if current_field_count > ideal_field_count {
+				panic!();
+			}
+
+			let mut difference = ideal_field_count - current_field_count;
 
 			// Difference of zero is no difference ofc
 			while difference != 0 {
