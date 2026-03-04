@@ -200,43 +200,6 @@ impl<'b> super::Deck<'b> {
 		})
 	}
 
-	pub fn parse_cards<'a>(
-		models: &'a [NoteModel],
-		content: &'a str,
-	) -> Result<Vec<Note<'a>>, DeckError> {
-		debug!("Parsing card content");
-
-		// Create the lexer
-		let token_iter = Token::lexer(content).spanned().map(|(tok, span)| match tok {
-			Ok(t) => (t, span.into()),
-			Err(_) => (Token::Error, span.into()),
-		});
-
-		// Turn the iterator into a Chumsky-compatible stream
-		// We provide a zero-width span at the end of the content for EOI (End Of Input)
-		let eoi = SimpleSpan::from(content.len()..content.len());
-		let token_stream = Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
-
-		// Parse the stream using the refactored flash parser
-		flash(models).parse(token_stream).into_result().map_err(|errors| {
-			for err in errors {
-				Report::build(ReportKind::Error, ((), err.span().into_range()))
-					.with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
-					.with_code(3)
-					.with_message(err.to_string())
-					.with_label(
-						Label::new(((), err.span().into_range()))
-							.with_message(err.reason().to_string())
-							.with_color(Color::Red),
-					)
-					.finish()
-					.eprint(Source::from(content))
-					.unwrap();
-			}
-			DeckError::Parse("".to_string())
-		})
-	}
-
 	#[instrument(skip(self, parent_tree, current_tree))]
 	pub fn track_file_changes(
 		&self,
@@ -278,7 +241,7 @@ impl<'b> super::Deck<'b> {
 			uuid_generator::create_host_uuid(author.name.to_string(), commit.time()?.seconds);
 
 		let file_content = Self::read_file_content(backing_vcs, &entry)?;
-		let notes = Self::parse_cards(models, &file_content)?;
+		let notes = parse_cards(models, &file_content)?;
 
 		let uuids = notes
 			.iter()
@@ -293,12 +256,38 @@ impl<'b> super::Deck<'b> {
 	}
 }
 
-// Parse cards from a string reference
-fn parse_cards_from_content<'a>(
-	models: &'a [NoteModel],
-	content: &'a str,
-) -> Result<Vec<Note<'a>>, DeckError> {
-	Deck::parse_cards(models, content).map_err(|_| DeckError::Parse(String::default()))
+fn parse_cards<'a>(models: &'a [NoteModel], content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
+	debug!("Parsing card content");
+
+	// Create the lexer
+	let token_iter = Token::lexer(content).spanned().map(|(tok, span)| match tok {
+		Ok(t) => (t, span.into()),
+		Err(_) => (Token::Error, span.into()),
+	});
+
+	// Turn the iterator into a Chumsky-compatible stream
+	// We provide a zero-width span at the end of the content for EOI (End Of Input)
+	let eoi = SimpleSpan::from(content.len()..content.len());
+	let token_stream = Stream::from_iter(token_iter).map(eoi, |(t, s)| (t, s));
+
+	// Parse the stream using the refactored flash parser
+	flash(models).parse(token_stream).into_result().map_err(|errors| {
+		for err in errors {
+			Report::build(ReportKind::Error, ((), err.span().into_range()))
+				.with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
+				.with_code(3)
+				.with_message(err.to_string())
+				.with_label(
+					Label::new(((), err.span().into_range()))
+						.with_message(err.reason().to_string())
+						.with_color(Color::Red),
+				)
+				.finish()
+				.eprint(Source::from(content))
+				.unwrap();
+		}
+		DeckError::Parse("".to_string())
+	})
 }
 
 // Initialize the first state with UUIDs
@@ -355,7 +344,7 @@ fn process_card_history<'a>(
 	// Handle first entry separately
 	let (first_entry, first_commit) = history_iter.next().ok_or_else(|| DeckError::EmptyHistory)?;
 
-	let first_cards = parse_cards_from_content(models, &content[0])?;
+	let first_cards = parse_cards(models, &content[0])?;
 
 	let mut bygone_cards = first_cards.clone();
 
@@ -364,7 +353,7 @@ fn process_card_history<'a>(
 
 	// Process remaining entries
 	for (idx, _entry_info) in history_iter.enumerate() {
-		let cards_of_the_day = parse_cards_from_content(models, &content[idx + 1])?;
+		let cards_of_the_day = parse_cards(models, &content[idx + 1])?;
 
 		// Make a diff of the changes and update the final cards appropriately
 		process_cycle(&bygone_cards, &cards_of_the_day, &mut elder_cards)?;
