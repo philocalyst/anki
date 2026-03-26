@@ -66,6 +66,7 @@ impl ModelStage for Complete {
 )]
 pub struct NoteModel<Stage: ModelStage = Complete> {
 	/// Filled in through the deck folder name
+	#[serde(skip)]
 	pub name: Stage::Name,
 
 	pub id: Uuid,

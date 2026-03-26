@@ -1,13 +1,35 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 
 use eyre::{Context, Result, eyre};
-use flash::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::find_deck_directory, parse::ImportExpander, types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck, note::{Identified, Note}, note_methods::Identifiable}};
+use flash::{
+	change_resolver::resolve_changes,
+	change_router::determine_changes,
+	deck_locator::find_deck_directory,
+	parse::ImportExpander,
+	types::{
+		crowd_anki_models::CrowdAnkiEntity,
+		deck::Deck,
+		note::{Identified, Note},
+		note_methods::Identifiable,
+	},
+};
 use gix::{Commit, object::tree::Entry};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_stdout::SpanExporter;
-use tracing::{info, instrument::{self, WithSubscriber}, warn};
-use tracing_subscriber::{EnvFilter, Registry, fmt::{self, time::ChronoUtc}, prelude::__tracing_subscriber_SubscriberExt};
+use tracing::{
+	info,
+	instrument::{self, WithSubscriber},
+	warn,
+};
+use tracing_subscriber::{
+	EnvFilter, Registry,
+	fmt::{self, time::ChronoUtc},
+	prelude::__tracing_subscriber_SubscriberExt,
+};
 use uuid::Uuid;
 
 pub fn init_tracing() {
