@@ -35,10 +35,8 @@ impl super::note::NoteModel<super::note::Partial> {
 			css = fs::read_to_string(css_path)?;
 		}
 
-		let dir_as_string = dir.to_string_lossy().to_string();
-		let name = dir_as_string.rsplit_once(".deck").unwrap().0.to_string();
-
-		dbg!(&name);
+		let name =
+			dir.file_name().unwrap().to_string_lossy().rsplit_once(".model").unwrap().0.to_string();
 
 		let mut latex_pre = None;
 		let pre_path = dir.join("pre.tex");
