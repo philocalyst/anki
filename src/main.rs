@@ -1,41 +1,67 @@
-use std::fs;
-
+use clap::Parser;
 use eyre::{Context, Result};
-use flash::{
-	deck_locator::find_deck_directory,
-	types::{
-		crowd_anki_models::CrowdAnkiEntity,
-		deck::Deck,
-	},
-};
+use flash::types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck};
+use std::{fs, path::PathBuf};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 pub fn init_tracing() {
-	// Uses RUST_LOG if set; otherwise default to info.
 	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
-
 	tracing_subscriber::fmt().with_env_filter(filter).with_target(false).compact().init();
+}
+
+/// Parse Anki decks into CrowdAnki-compatible JSON
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+	/// Paths to deck directories to parse.
+	#[arg(
+        value_name = "DECK_PATH",
+        value_hint = clap::ValueHint::DirPath,
+        num_args = 1..,
+        required = true,
+    )]
+	decks: Vec<PathBuf>,
+
+	/// Output file path (defaults to flash.json)
+	#[arg(
+        short,
+        long,
+        value_name = "FILE",
+        value_hint = clap::ValueHint::FilePath,
+        default_value = "flash.json",
+    )]
+	output: PathBuf,
 }
 
 fn main() -> Result<()> {
 	init_tracing();
 	color_eyre::install()?;
 
+	let args = Args::parse();
+
 	info!("Starting Anki deck parser");
 
-	// Find and scan deck
-	let deck_path = find_deck_directory().wrap_err("Failed to find deck directory")?;
-	info!("Found deck at: {:?}", deck_path);
+	let mut entities: Vec<CrowdAnkiEntity> = Vec::with_capacity(args.decks.len());
 
-	let deck = Deck::from(deck_path)?;
+	for deck_path in &args.decks {
+		info!("Parsing deck at: {:?}", deck_path);
+		let deck = Deck::from(deck_path.clone())
+			.wrap_err_with(|| format!("Failed to parse deck at {:?}", deck_path))?;
+		entities.push(deck.into());
+	}
 
-	let out: CrowdAnkiEntity = deck.into();
+	let out = if entities.len() == 1 {
+		sonic_rs::serde::to_string(&entities[0])?
+	} else {
+		sonic_rs::serde::to_string(&entities)?
+	};
 
-	let out = sonic_rs::serde::to_string(&out)?;
+	fs::write(&args.output, out)
+		.wrap_err_with(|| format!("Failed to write output to {:?}", args.output))?;
 
-	fs::write("flash.json", out)?;
+	info!("Wrote output to {:?}", args.output);
+	info!("Deck parsing completed ({} deck(s))", args.decks.len());
 
-	info!("Deck parsing completed");
 	Ok(())
 }
