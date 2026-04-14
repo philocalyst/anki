@@ -464,26 +464,28 @@ where
 		.then_ignore(end())
 }
 
+#[test]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name:           "Basic".to_string(),
-		id:             Uuid::new_v4(),
-		templates:      vec![],
+		name: "Basic".to_string(),
+		id: Uuid::new_v4(),
+		templates: vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults:       None,
-		css:            "".to_string(),
-		fields:         vec![
+		defaults: None,
+		css: "".to_string(),
+		fields: vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre:      None,
-		latex_post:     None,
-		sort_field:     None,
-		tags:           None,
+		latex_pre: None,
+		latex_post: None,
+		sort_field: None,
+		tags: None,
 		// Requirement: Front must be present
-		required:       evalexpr::build_operator_tree("Front").unwrap(),
+		required: evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
+
 #[test]
 fn test_alias_and_multiple_notes() {
 	let models = vec![mock_model()];
