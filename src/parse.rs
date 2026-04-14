@@ -1,17 +1,20 @@
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
+use std::{
+	borrow::Cow,
+	collections::{HashMap, HashSet},
+	fs,
+	path::{Path, PathBuf},
+};
 
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
-use semver::Version;
-use uuid::Uuid;
 
-use crate::types::{deck::Deck, note::{Cloze, Field, Note, NoteField, NoteModel, TextElement}};
+use crate::types::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited:  HashSet<PathBuf>,
+	visited: HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -312,10 +315,10 @@ where
 
 /// Build a note from parsed components
 struct NoteComponents<'m> {
-	model:   &'m NoteModel,
+	model: &'m NoteModel,
 	aliases: HashMap<String, String>,
-	tags:    Vec<String>,
-	fields:  Vec<NoteField>,
+	tags: Vec<String>,
+	fields: Vec<NoteField>,
 }
 
 impl<'m> NoteComponents<'m> {

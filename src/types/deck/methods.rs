@@ -183,7 +183,7 @@ impl<'b> super::Deck<'b> {
 			// Difference of zero is no difference ofc
 			while difference != 0 {
 				card.inner.fields.push(NoteField::default());
-				difference = difference - 1;
+				difference -= 1;
 			}
 		});
 

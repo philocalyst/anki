@@ -1,36 +1,15 @@
-use std::{
-	fs,
-	path::{Path, PathBuf},
-};
+use std::fs;
 
-use eyre::{Context, Result, eyre};
+use eyre::{Context, Result};
 use flash::{
-	change_resolver::resolve_changes,
-	change_router::determine_changes,
 	deck_locator::find_deck_directory,
-	parse::ImportExpander,
 	types::{
 		crowd_anki_models::CrowdAnkiEntity,
 		deck::Deck,
-		note::{Identified, Note},
-		note_methods::Identifiable,
 	},
 };
-use gix::{Commit, object::tree::Entry};
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_stdout::SpanExporter;
-use tracing::{
-	info,
-	instrument::{self, WithSubscriber},
-	warn,
-};
-use tracing_subscriber::{
-	EnvFilter, Registry,
-	fmt::{self, time::ChronoUtc},
-	prelude::__tracing_subscriber_SubscriberExt,
-};
-use uuid::Uuid;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 pub fn init_tracing() {
 	// Uses RUST_LOG if set; otherwise default to info.
