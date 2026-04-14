@@ -30,3 +30,40 @@ uuid = { version = "1.18.1", features = ["serde", "v4", "v5"] }
 [features]
 default = ["serde"]
 serde = []
+
+[workspace.lints.rust]
+mismatched_lifetime_syntaxes = "deny"
+unused_imports = "deny"
+unused_must_use = "deny"
+dead_code = "deny"
+unstable_name_collisions = "deny"
+unused_assignments = "deny"
+deprecated = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
+# deny
+filetype_is_file = "deny"
+cargo = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+panic = "deny"
+match_like_matches_macro = "deny"
+needless_update = "deny"
+expect_used = "deny"
+
+# allow
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+empty_docs = "allow"
+unnecessary_debug_formatting = "allow"
+
+# allow
+significant_drop_tightening = "allow"
+missing_panics_doc = "allow"
+multiple_crate_versions = "allow"
+
