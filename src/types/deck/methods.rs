@@ -191,32 +191,6 @@ impl<'b> super::Deck<'b> {
 		Ok(Self { models, backing_vcs, cards, configuration })
 	}
 
-	#[instrument(skip(self))]
-	pub fn find_model(&self, name: &str) -> Result<&NoteModel, DeckError> {
-		debug!("Looking for model: {}", name);
-		self.models.iter().find(|model| model.name == name).ok_or_else(|| {
-			warn!("Model '{}' not found", name);
-			DeckError::ModelNotFound(name.to_string())
-		})
-	}
-
-	#[instrument(skip(self, parent_tree, current_tree))]
-	pub fn track_file_changes(
-		&self,
-		parent_tree: &Tree,
-		current_tree: &Tree,
-		path: &str,
-	) -> Result<(), DeckError> {
-		let parent_entry = parent_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
-		let current_entry = current_tree.lookup_entry_by_path(path)?.ok_or(DeckError::InvalidEntry)?;
-
-		if parent_entry.id() != current_entry.id() {
-			debug!("File modified: {}", path);
-		}
-
-		Ok(())
-	}
-
 	#[instrument(skip(backing_vcs))]
 	pub fn read_file_content(backing_vcs: &Repository, entry: &BEntry) -> Result<String, DeckError> {
 		// Retrieve the entries binary representation from the VCS and serialize as UTF8
