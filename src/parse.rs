@@ -408,6 +408,7 @@ where
         .validate(move |((model_opt, aliases), notes_data): ((Option<&NoteModel>, AliasPairs), Vec<RawNote>), extra, emitter| {
 	let model = model_opt?;
 	let span = extra.span();
+
 	// Build alias map once for all notes
 	let alias_map: HashMap<_, _> =
 		aliases.into_iter().map(|(from, to)| (to, from)).collect();
@@ -427,7 +428,9 @@ where
 				let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
 				// Setting the fields provided to true within the evaluation context
 				eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
-				if !model.fields.iter().any(|f| &f.name == resolved_name) {
+
+				// Also evaluates correctly if the field is an unimbigious match prefix.
+				if !model.fields.iter().any(|f| &f.name == resolved_name || f.name.starts_with(resolved_name)) {
 					emitter.emit(Rich::custom(
 						span,
 						format!("Field '{}' not found in model '{}'", field.name, model.name),
