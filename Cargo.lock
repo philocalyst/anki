@@ -396,6 +396,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dir_spec"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acc9e6cd0db73b23d515420c1e0d0ad6d73980423d63ece40a2bd60bfe3f8ce8"
+
+[[package]]
 name = "displaydoc"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -504,6 +510,7 @@ dependencies = [
  "chumsky",
  "clap",
  "color-eyre",
+ "dir_spec",
  "evalexpr",
  "eyre",
  "fs-err",

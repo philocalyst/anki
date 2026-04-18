@@ -8,6 +8,7 @@ ariadne = "0.5.1"
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.0", features = ["derive"] }
 color-eyre = "0.6.5"
+dir_spec = "0.5.2"
 evalexpr = { git = "https://github.com/philocalyst/evalexpr", features = ["serde"]}
 eyre = "0.6.12"
 fs-err = "3.1.1"
