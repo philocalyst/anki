@@ -416,32 +416,44 @@ where
 
 	let mut context = HashMapContext::<DefaultNumericTypes>::new();
 
-				// Linking field to their relevant match
-	let mut unique_prefix: HashMap<String, String> = HashMap::new();
+// Link each field to its shortest unique prefix
+let mut unique_prefix: HashMap<String, String> = HashMap::new();
+let mut fields = model.fields.clone();
+fields.sort_by(|a, b| a.name.cmp(&b.name));
 
-	let mut fields = model.fields.clone();
-	fields.sort();
+// Initialize all model fields to false
+for model_field in &fields {
+    eval_empty_with_context_mut(&format!("{} = false", model_field.name), &mut context).unwrap();
+}
 
-	let mut previous_first: Option<char> = None; 
+// After sorting, only adjacent neighbors can share a prefix, so compare each
+// field against its immediate neighbors to find the shortest disambiguating prefix
+for (i, model_field) in fields.iter().enumerate() {
+    let prev_name = fields.get(i.wrapping_sub(1)).map(|f| f.name.as_str());
+    let next_name = fields.get(i + 1).map(|f| f.name.as_str());
 
-	// Initialize all model fields to false
-	for model_field in &fields {
-		let first_char = model_field.name.chars().next().unwrap();
+    // How many chars do we share with this neighbor?
+    let shared_with = |neighbor: &str| {
+        model_field.name
+            .chars()
+            .zip(neighbor.chars())
+            .take_while(|(a, b)| a == b)
+            .count()
+    };
 
-		if let Some(last_first) = previous_first {
-			// Not unique, should keep searching
-			if first_char == last_first {
-				todo!();
-			} else {
-				// Yes unique
-				unique_prefix.push((model_field.name.clone(), first_char.to_string()));
-			}
-		}
+    // We need one char beyond the longest shared run to be unambiguous
+    let prefix_len = [prev_name, next_name]
+        .into_iter()
+        .flatten()
+        .map(shared_with)
+        .max()
+        .map(|shared| shared + 1)
+        .unwrap_or(1)
+        .min(model_field.name.len());
 
-		eval_empty_with_context_mut(&format!("{} = false", model_field.name), &mut context).unwrap();
-
-		previous_first = Some(first_char);
-	}
+    let prefix = model_field.name[..prefix_len].to_string();
+        unique_prefix.insert(prefix, model_field.name.clone());
+}
 
 	let notes: Vec<Note> = notes_data
 		.into_iter()
