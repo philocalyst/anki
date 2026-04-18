@@ -1,7 +1,8 @@
+use std::{fs, path::PathBuf};
+
 use clap::Parser;
 use eyre::{Context, Result};
 use flash::types::{crowd_anki_models::CrowdAnkiEntity, deck::Deck};
-use std::{fs, path::PathBuf};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

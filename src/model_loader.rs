@@ -1,7 +1,4 @@
-use std::{
-	fs::{self, ReadDir},
-	path::{Path, PathBuf},
-};
+use std::{fs::{self, ReadDir}, path::{Path, PathBuf}};
 
 use tracing::{debug, info, instrument};
 

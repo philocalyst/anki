@@ -3,24 +3,13 @@ use std::{fs, path::Path};
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
-use crate::{
-	error::DeckError,
-	types::{
-		crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType},
-		deck::Deck,
-		note::{Cloze, Identified, TextElement},
-	},
-};
+use crate::{error::DeckError, types::{crowd_anki_models::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, TextElement}}};
 
 // Extension trait to add .identified() method
 pub trait Identifiable: Sized {
-	fn identified(self, id: Uuid) -> Identified<Self> {
-		Identified { id, inner: self }
-	}
+	fn identified(self, id: Uuid) -> Identified<Self> { Identified { id, inner: self } }
 
-	fn with_new_id(self) -> Identified<Self> {
-		Identified { id: Uuid::new_v4(), inner: self }
-	}
+	fn with_new_id(self) -> Identified<Self> { Identified { id: Uuid::new_v4(), inner: self } }
 }
 
 impl super::note::NoteModel<super::note::Partial> {
@@ -81,12 +70,12 @@ impl super::note::NoteModel<super::note::Partial> {
 					t
 				} else {
 					templates.push(super::config::Template {
-						name: template_name.clone(),
-						order: templates.len() as i32,
-						question_format: String::new(),
-						answer_format: String::new(),
+						name:                    template_name.clone(),
+						order:                   templates.len() as i32,
+						question_format:         String::new(),
+						answer_format:           String::new(),
 						browser_question_format: String::new(),
-						browser_answer_format: String::new(),
+						browser_answer_format:   String::new(),
 					});
 					templates.last_mut().unwrap()
 				};
@@ -191,52 +180,52 @@ impl<'a> From<&'a crate::types::note::NoteModel> for super::crowd_anki_models::N
 	fn from(model: &'a crate::types::note::NoteModel) -> Self {
 		super::crowd_anki_models::NoteModel {
 			crowdanki_uuid: model.id.to_string(),
-			name: model.name.clone(),
-			kind: NoteModelType::Standard,
-			flds: model
+			name:           model.name.clone(),
+			kind:           NoteModelType::Standard,
+			flds:           model
 				.fields
 				.iter()
 				.enumerate()
 				.map(|(idx, field)| Field {
-					name: field.name.clone(),
-					ord: idx as i32,
+					name:   field.name.clone(),
+					ord:    idx as i32,
 					sticky: field.sticky.unwrap_or(false),
-					rtl: model.defaults.as_ref().map(|d| d.rtl).unwrap_or(false),
-					font: model
+					rtl:    model.defaults.as_ref().map(|d| d.rtl).unwrap_or(false),
+					font:   model
 						.defaults
 						.as_ref()
 						.map(|d| d.font.clone())
 						.unwrap_or_else(|| "Arial".to_string()),
-					size: model.defaults.as_ref().map(|d| d.size).unwrap_or(20) as i32,
-					media: Vec::new(),
+					size:   model.defaults.as_ref().map(|d| d.size).unwrap_or(20) as i32,
+					media:  Vec::new(),
 				})
 				.collect(),
-			tmpls: model
+			tmpls:          model
 				.templates
 				.iter()
 				.enumerate()
 				.map(|(idx, tmpl)| super::crowd_anki_models::Template {
-					name: tmpl.name.clone(),
-					ord: idx as i32,
-					qfmt: tmpl.question_format.clone(),
-					afmt: tmpl.answer_format.clone(),
+					name:  tmpl.name.clone(),
+					ord:   idx as i32,
+					qfmt:  tmpl.question_format.clone(),
+					afmt:  tmpl.answer_format.clone(),
 					bafmt: Some(tmpl.browser_answer_format.clone()),
 					bqfmt: Some(tmpl.browser_question_format.clone()),
-					did: None,
+					did:   None,
 				})
 				.collect(),
-			css: model.css.clone(),
-			did: None,
-			latex_pre: model.latex_pre.clone(),
-			latex_post: model.latex_post.clone(),
-			req: None,
-			sortf: model
+			css:            model.css.clone(),
+			did:            None,
+			latex_pre:      model.latex_pre.clone(),
+			latex_post:     model.latex_post.clone(),
+			req:            None,
+			sortf:          model
 				.sort_field
 				.as_ref()
 				.and_then(|sf| model.fields.iter().position(|f| f.name == *sf))
 				.map(|pos| pos as i32),
-			tags: model.tags.clone(),
-			vers: None,
+			tags:           model.tags.clone(),
+			vers:           None,
 		}
 	}
 }
@@ -258,9 +247,9 @@ impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 	fn from(note: Identified<crate::types::note::Note<'a>>) -> Self {
 		let inner_note = note.inner;
 		Note {
-			guid: note.id.to_string(),
+			guid:            note.id.to_string(),
 			note_model_uuid: inner_note.model.id.to_string(),
-			fields: inner_note
+			fields:          inner_note
 				.fields
 				.into_iter()
 				.map(|field| {
@@ -278,10 +267,10 @@ impl<'a> From<Identified<crate::types::note::Note<'a>>> for Note {
 						.collect::<String>()
 				})
 				.collect(),
-			tags: inner_note.tags,
-			flags: 0,
-			newly_added: true,
-			data: None,
+			tags:            inner_note.tags,
+			flags:           0,
+			newly_added:     true,
+			data:            None,
 		}
 	}
 }
