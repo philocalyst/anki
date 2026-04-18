@@ -5,11 +5,11 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use chumsky::{input::ValueInput, prelude::*};
+use chumsky::{container::Container, input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
 
-use crate::types::note::{Cloze, Note, NoteField, NoteModel, TextElement};
+use crate::types::note::{Cloze, Field, Note, NoteField, NoteModel, TextElement};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
@@ -409,19 +409,47 @@ where
 	let model = model_opt?;
 	let span = extra.span();
 
+
 	// Build alias map once for all notes
 	let alias_map: HashMap<_, _> =
 		aliases.into_iter().map(|(from, to)| (to, from)).collect();
 
+	let mut context = HashMapContext::<DefaultNumericTypes>::new();
+
+				// Linking field to their relevant match
+	let mut unique_prefix: HashMap<String, String> = HashMap::new();
+
+	let mut fields = model.fields.clone();
+	fields.sort();
+
+	let mut previous_first: Option<char> = None; 
+
+	// Initialize all model fields to false
+	for model_field in &fields {
+		let first_char = model_field.name.chars().next().unwrap();
+
+		if let Some(last_first) = previous_first {
+			// Not unique, should keep searching
+			if first_char == last_first {
+				todo!();
+			} else {
+				// Yes unique
+				unique_prefix.push((model_field.name.clone(), first_char.to_string()));
+			}
+		}
+
+		eval_empty_with_context_mut(&format!("{} = false", model_field.name), &mut context).unwrap();
+
+		previous_first = Some(first_char);
+	}
+
 	let notes: Vec<Note> = notes_data
 		.into_iter()
 		.filter_map(|(tags, fields)| {
-			let mut context = HashMapContext::<DefaultNumericTypes>::new();
+			// Reset context
+			let mut context = context.clone();
 
-			// Initialize all model fields to false
-			for model_field in &model.fields {
-				eval_empty_with_context_mut(&format!("{} = false", model_field.name), &mut context).unwrap();
-			}
+
 
 			// Validate fields against model (with alias resolution)
 			for field in &fields {
