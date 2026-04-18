@@ -1,16 +1,21 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+	fs::{self, ReadDir},
+	path::{Path, PathBuf},
+};
 
 use tracing::{debug, info, instrument};
 
 use crate::{error::DeckError, types::note::NoteModel};
 
 #[instrument]
-pub fn load_models(model_paths: &[PathBuf], deck_path: &Path) -> Result<Vec<NoteModel>, DeckError> {
-	info!("Loading {} models", model_paths.len());
+pub fn load_models(model_paths: ReadDir, deck_path: &Path) -> Result<Vec<NoteModel>, DeckError> {
+	info!("Loading models");
 
 	let mut all_models = Vec::new();
 
-	for model_path in model_paths {
+	for model_path in model_paths.into_iter() {
+		let model_path = model_path?.path();
+
 		let config_path = model_path.join("config.toml");
 		debug!("Loading model config from {:?}", config_path);
 
@@ -21,7 +26,7 @@ pub fn load_models(model_paths: &[PathBuf], deck_path: &Path) -> Result<Vec<Note
 		let model: NoteModel<crate::types::note::Partial> = toml::from_str(&config_content).unwrap();
 
 		// TODO: This path should be more dynamic
-		let model = model.complete(model_path)?;
+		let model = model.complete(model_path.as_path())?;
 
 		info!("Loaded model: {}", model.name);
 		all_models.push(model);

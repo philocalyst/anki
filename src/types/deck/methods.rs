@@ -1,5 +1,6 @@
 use std::{
-	fs, mem,
+	fs::{self, ReadDir},
+	mem,
 	path::{Path, PathBuf},
 };
 
@@ -9,6 +10,7 @@ use chumsky::{
 	input::{Input, Stream},
 	span::SimpleSpan,
 };
+use dir_spec::data_home;
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
@@ -105,6 +107,14 @@ pub fn get_file_history<'a>(
 	}
 }
 
+pub fn find_models() -> Result<ReadDir, DeckError> {
+	let flash_home = data_home().unwrap().join("flash");
+
+	let available_models = fs::read_dir(flash_home)?;
+
+	Ok(available_models)
+}
+
 impl<'b> super::Deck<'b> {
 	#[instrument(skip(deck_path))]
 	pub fn from<P: AsRef<Path>>(deck_path: P) -> Result<Self, DeckError> {
@@ -112,15 +122,17 @@ impl<'b> super::Deck<'b> {
 		info!("Initializing deck from: {:?}", deck_path);
 
 		// Scan deck contents
-		let (model_paths, card_paths) = scan_deck_contents(deck_path)
+		let card_paths = scan_deck_contents(deck_path)
 			.map_err(|e| DeckError::DeckInit(format!("Failed to scan deck contents: {}", e)))?;
+
+		let model_paths = find_models()?;
 
 		if card_paths.is_empty() {
 			warn!("No card files found in deck directory");
 		}
 
 		// Load models
-		let models = model_loader::load_models(&model_paths, deck_path)
+		let models = model_loader::load_models(model_paths, deck_path)
 			.map_err(|e| DeckError::DeckInit(format!("Failed to load models: {}", e)))?;
 
 		info!("Loaded {} models", models.len());

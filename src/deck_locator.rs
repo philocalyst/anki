@@ -1,4 +1,7 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 
 use tracing::{debug, error, info, instrument};
 
@@ -19,25 +22,21 @@ pub fn find_deck_directory() -> Result<PathBuf, DeckError> {
 }
 
 #[instrument]
-pub fn scan_deck_contents(deck_path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), DeckError> {
+pub fn scan_deck_contents(deck_path: &Path) -> Result<Vec<PathBuf>, DeckError> {
 	info!("Scanning deck contents at {:?}", deck_path);
 
-	let mut models = Vec::new();
 	let mut cards = Vec::new();
 
 	for entry in fs::read_dir(deck_path)? {
 		let path = entry?.path();
 		let extension = path.extension().and_then(|s| s.to_str());
 
-		if extension == Some("model") && path.is_dir() {
-			debug!("Found model directory: {:?}", path);
-			models.push(path);
-		} else if extension == Some("flash") && path.is_file() {
+		if extension == Some("flash") && path.is_file() {
 			debug!("Found card file: {:?}", path);
 			cards.push(path);
 		}
 	}
 
-	info!("Found {} models and {} card files", models.len(), cards.len());
-	Ok((models, cards))
+	info!("Found {} card files", cards.len());
+	Ok(cards)
 }
