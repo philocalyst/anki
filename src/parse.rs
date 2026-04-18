@@ -465,12 +465,12 @@ for (i, model_field) in fields.iter().enumerate() {
 
 			// Validate fields against model (with alias resolution)
 			for field in &fields {
-				let resolved_name = alias_map.get(&field.name).unwrap_or(&field.name);
+				let resolved_name = alias_map.get(&field.name).or(unique_prefix.get(&field.name)).unwrap_or(&field.name);
 				// Setting the fields provided to true within the evaluation context
 				eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
 
 				// Also evaluates correctly if the field is an unimbigious match prefix.
-				if !model.fields.iter().any(|f| &f.name == resolved_name || f.name.starts_with(resolved_name)) {
+				if !model.fields.iter().any(|f| &f.name == resolved_name) {
 					emitter.emit(Rich::custom(
 						span,
 						format!("Field '{}' not found in model '{}'", field.name, model.name),
