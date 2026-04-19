@@ -1,6 +1,11 @@
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
+use std::{
+	borrow::Cow,
+	collections::{HashMap, HashSet},
+	fs,
+	path::{Path, PathBuf},
+};
 
-use chumsky::{container::Container, input::ValueInput, prelude::*};
+use chumsky::{container::Container, input::ValueInput, prelude::*, text::digits};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
 
@@ -9,7 +14,7 @@ use crate::types::note::{Cloze, Field, Note, NoteField, NoteModel, TextElement};
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited:  HashSet<PathBuf>,
+	visited: HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -74,7 +79,8 @@ use std::fmt;
 impl<'a> fmt::Display for Token<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Eq => write!(f, "="),
+			Self::Slash => write!(f, "/"),
+			Self::RArrow => write!(f, ">"),
 			Self::Colon => write!(f, ":"),
 			Self::LBracket => write!(f, "["),
 			Self::RBracket => write!(f, "]"),
@@ -97,8 +103,8 @@ impl<'a> fmt::Display for Token<'a> {
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 pub enum Token<'a> {
-	#[token("=")]
-	Eq,
+	#[token("/")]
+	Slash,
 
 	#[token(":")]
 	Colon,
@@ -114,6 +120,9 @@ pub enum Token<'a> {
 
 	#[token("}")]
 	RBrace,
+
+	#[token(">")]
+	RArrow,
 
 	#[token("(")]
 	LParen,
@@ -139,7 +148,7 @@ pub enum Token<'a> {
 	#[regex(r"[ \t]+")]
 	WS(&'a str),
 
-	#[regex(r"[^ \t\n:=\[\](){},|]+", priority = 4)]
+	#[regex(r"[^ \t\n:=\[\](){},|]+/", priority = 4)]
 	Text(&'a str),
 
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
@@ -195,9 +204,9 @@ where
 		Token::WS(s) => s,
 	};
 
-	just(Token::Eq)
+	just(Token::Slash)
 		.ignore_then(model_name_parts.repeated().collect::<Vec<_>>())
-		.then_ignore(just(Token::Eq))
+		.then_ignore(just(Token::Slash))
 		.map(|parts: Vec<&str>| parts.concat().trim().to_string())
 		.labelled("model declaration")
 }
@@ -246,7 +255,7 @@ where
 		.labelled("tags")
 }
 
-/// Parse cloze: {Answer|Hint}
+/// Parse cloze: {Answer|Hint>Id}
 /// Parse cloze: {Answer|Hint} or just { if incomplete
 fn cloze<'tokens, 'src: 'tokens, I>()
 -> impl Parser<'tokens, I, TextElement, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
@@ -265,12 +274,18 @@ where
 	let cloze_part = cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
 	let hint = just(Token::Pipe).ignore_then(cloze_part).map(|s| s.trim().to_string()).or_not();
 
+	// TODO: Fail on a non-number input
+	let id = just(Token::RArrow).ignore_then(cloze_chars).or_not();
+
 	// Try complete cloze pattern with closing brace
 	let complete_cloze = just(Token::LBrace)
 		.ignore_then(cloze_part.map(|s| s.trim().to_string()))
 		.then(hint)
+		.then(id)
 		.then_ignore(just(Token::RBrace))
-		.map(|(answer, hint)| TextElement::Cloze(Cloze { id: 0, answer, hint }));
+		.map(|((answer, hint), id)| {
+			TextElement::Cloze(Cloze { id: id.unwrap_or_default().parse().unwrap(), answer, hint })
+		});
 
 	// If complete pattern fails, just treat { as literal text
 	complete_cloze.or(just(Token::LBrace).to(TextElement::Text("{".to_string()))).labelled("cloze")
@@ -310,10 +325,10 @@ where
 
 /// Build a note from parsed components
 struct NoteComponents<'m> {
-	model:   &'m NoteModel,
+	model: &'m NoteModel,
 	aliases: HashMap<String, String>,
-	tags:    Vec<String>,
-	fields:  Vec<NoteField>,
+	tags: Vec<String>,
+	fields: Vec<NoteField>,
 }
 
 impl<'m> NoteComponents<'m> {
@@ -508,22 +523,22 @@ for (i, model_field) in fields.iter().enumerate() {
 #[test]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name:           "Basic".to_string(),
-		id:             Uuid::new_v4(),
-		templates:      vec![],
+		name: "Basic".to_string(),
+		id: Uuid::new_v4(),
+		templates: vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults:       None,
-		css:            "".to_string(),
-		fields:         vec![
+		defaults: None,
+		css: "".to_string(),
+		fields: vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre:      None,
-		latex_post:     None,
-		sort_field:     None,
-		tags:           None,
+		latex_pre: None,
+		latex_post: None,
+		sort_field: None,
+		tags: None,
 		// Requirement: Front must be present
-		required:       evalexpr::build_operator_tree("Front").unwrap(),
+		required: evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
 
