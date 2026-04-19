@@ -10,6 +10,7 @@ pub enum ConfigType {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct DeckConfig {
+	// Don't ask anything here
 	#[serde(skip)]
 	pub crowdanki_uuid: String,
 

@@ -153,13 +153,17 @@ impl<'b> super::Deck<'b> {
 		// Load or create default configuration
 		let config_path = deck_path.join("config.toml");
 
-		let configuration: DeckConfig = if config_path.exists() {
+		let mut configuration: DeckConfig = if config_path.exists() {
 			let config_content = fs::read_to_string(&config_path)
 				.map_err(|_| DeckError::DeckConfigNotFound(config_path.clone()))?;
 			toml::from_str(&config_content)?
 		} else {
 			DeckConfig::blank(deck_identifer)
 		};
+
+		if configuration.crowdanki_uuid == "" {
+			configuration.crowdanki_uuid = deck_identifer.to_string()
+		}
 
 		let history = get_file_history(&vcs, "index.flash")?;
 
