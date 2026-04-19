@@ -1,14 +1,37 @@
-use std::{fs::{self, ReadDir}, mem, path::{Path, PathBuf}};
+use std::{
+	fs::{self, ReadDir},
+	mem,
+	path::{Path, PathBuf},
+};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{Parser, input::{Input, Stream}, span::SimpleSpan};
+use chumsky::{
+	Parser,
+	input::{Input, Stream},
+	span::SimpleSpan,
+};
 use dir_spec::data_home;
 use gix::{Commit, Repository, Tree, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{change_resolver::resolve_changes, change_router::determine_changes, deck_locator::scan_deck_contents, error::DeckError, model_loader, parse::{ImportExpander, Token, flash}, types::{BEntry, crowd_anki_config::DeckConfig, deck::Deck, note::{Identified, Note, NoteField, NoteModel}, note_methods::Identifiable}, uuid_generator};
+use crate::{
+	change_resolver::resolve_changes,
+	change_router::determine_changes,
+	deck_locator::scan_deck_contents,
+	error::DeckError,
+	model_loader,
+	parse::{ImportExpander, Token, flash},
+	types::{
+		BEntry,
+		crowd_anki_config::DeckConfig,
+		deck::Deck,
+		note::{Identified, Note, NoteField, NoteModel},
+		note_methods::Identifiable,
+	},
+	uuid_generator::{self, HostUuid},
+};
 
 pub fn get_file_history<'a>(
 	vcs: &'a Repository,
@@ -278,7 +301,7 @@ fn process_cycle(
 	if let Some(changes) = determine_changes(last_cards, current_cards)? {
 		// Assuming resolve_uuids mutates static_cards in place or returns new value
 		// If it returns a new value:
-		resolve_changes(&changes, static_cards, Uuid::default());
+		resolve_changes(&changes, static_cards, HostUuid::default());
 	}
 	Ok(())
 }

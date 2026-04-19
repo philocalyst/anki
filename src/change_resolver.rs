@@ -11,7 +11,11 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, types::note::{Identified, Note}, uuid_generator};
+use crate::{
+	change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders},
+	types::note::{Identified, Note},
+	uuid_generator::{self, HostUuid},
+};
 
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
@@ -19,21 +23,24 @@ use crate::{change_router::Transforms::{self, Additions, Deletions, Modification
 pub fn resolve_changes<'a, 'b>(
 	transformations: &Transforms<'a>,
 	substrate: &mut Vec<Identified<Note<'b>>>,
-	host_uuid: Uuid,
+	host_uuid: HostUuid,
 ) {
 	match transformations {
 		Additions(additions) => {
 			for (idx, new_note) in additions {
 				let base_uuid =
 					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
-				substrate.insert(*idx, Identified {
-					id:    base_uuid,
-					inner: Note {
-						fields: new_note.fields.clone(),
-						model:  Cow::Owned(new_note.model.clone().into_owned()),
-						tags:   new_note.tags.clone(),
+				substrate.insert(
+					*idx,
+					Identified {
+						id: base_uuid,
+						inner: Note {
+							fields: new_note.fields.clone(),
+							model: Cow::Owned(new_note.model.clone().into_owned()),
+							tags: new_note.tags.clone(),
+						},
 					},
-				});
+				);
 			}
 		}
 		Deletions(deletions) => {
@@ -46,11 +53,11 @@ pub fn resolve_changes<'a, 'b>(
 			for (idx, modified_note) in modifications {
 				let existing_id = substrate[*idx].id;
 				substrate[*idx] = Identified {
-					id:    existing_id,
+					id: existing_id,
 					inner: Note {
 						fields: modified_note.fields.clone(),
-						model:  Cow::Owned(modified_note.model.clone().into_owned()),
-						tags:   modified_note.tags.clone(),
+						model: Cow::Owned(modified_note.model.clone().into_owned()),
+						tags: modified_note.tags.clone(),
 					},
 				};
 			}
