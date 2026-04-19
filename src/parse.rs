@@ -148,7 +148,7 @@ pub enum Token<'a> {
 	#[regex(r"[ \t]+")]
 	WS(&'a str),
 
-	#[regex(r"[^ \t\n:=\[\](){},|]+/", priority = 4)]
+	#[regex(r"[^ \t\n:=\[\](){},|/]+", priority = 4)]
 	Text(&'a str),
 
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
