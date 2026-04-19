@@ -30,7 +30,7 @@ use crate::{
 		note::{Identified, Note, NoteField, NoteModel},
 		note_methods::Identifiable,
 	},
-	uuid_generator::{self, HostUuid},
+	uuid_generator::{self, HostUuid, generate_core_identifier},
 };
 
 pub fn get_file_history<'a>(
@@ -143,18 +143,24 @@ impl<'b> super::Deck<'b> {
 		let backing_vcs = gix::open(repo_path)
 			.map_err(|e| DeckError::DeckInit(format!("Failed to open git repository: {}", e)))?;
 
-		// Load or create default configuration
-		let config_path = deck_path.join("config.toml");
-
-		let config_content = fs::read_to_string(&config_path)
-			.map_err(|_| DeckError::DeckConfigNotFound(config_path.clone()))?;
-
-		let configuration: DeckConfig = toml::from_str(&config_content)?;
-
 		// Generating against the initial point of creation for the file, taking into
 		// account renames. This should keep things stable as long as the git repo is
 		// the token of trade
 		let vcs = backing_vcs.clone();
+
+		let deck_identifer = derive_core_id(&vcs)?;
+
+		// Load or create default configuration
+		let config_path = deck_path.join("config.toml");
+
+		let configuration: DeckConfig = if config_path.exists() {
+			let config_content = fs::read_to_string(&config_path)
+				.map_err(|_| DeckError::DeckConfigNotFound(config_path.clone()))?;
+			toml::from_str(&config_content)?
+		} else {
+			DeckConfig::blank(deck_identifer)
+		};
+
 		let history = get_file_history(&vcs, "index.flash")?;
 
 		// Store all content strings so they live long enough
@@ -240,6 +246,29 @@ impl<'b> super::Deck<'b> {
 		debug!("Generated {} UUIDs", notes.len());
 		Ok(uuids)
 	}
+}
+
+fn derive_core_id<'a>(vcs: &'a Repository) -> Result<Uuid, DeckError> {
+	let head_id = vcs.head_id().unwrap();
+	let walk = vcs.rev_walk([head_id]).all()?;
+
+	for info in walk {
+		let info = info?;
+		let mut commit = info.parent_ids();
+		if commit.next().is_none() {
+			let comitter = info.object()?;
+			let comitter = comitter.committer();
+			let core_id = generate_core_identifier(
+				// TODO: Figure out why this can fail sometimes
+				info.commit_time.unwrap_or(i64::default()),
+				&comitter.unwrap().name.to_string(),
+				&info.id().to_string(),
+			);
+			return Ok(core_id);
+		}
+	}
+
+	Err(DeckError::EmptyHistory)
 }
 
 fn parse_cards<'a>(models: &'a [NoteModel], content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
