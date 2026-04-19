@@ -284,7 +284,7 @@ where
 		.then(id)
 		.then_ignore(just(Token::RBrace))
 		.map(|((answer, hint), id)| {
-			TextElement::Cloze(Cloze { id: id.unwrap_or_default().parse().unwrap(), answer, hint })
+			TextElement::Cloze(Cloze { id: id.and_then(|s| s.parse().ok()).unwrap_or(0), answer, hint })
 		});
 
 	// If complete pattern fails, just treat { as literal text
