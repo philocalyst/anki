@@ -20,3 +20,9 @@ pub fn create_host_uuid(author: String, time: i64) -> HostUuid {
 pub fn generate_note_uuid(uuid: &HostUuid, content: &str) -> Uuid {
 	Uuid::new_v5(&uuid.0, content.as_bytes())
 }
+
+pub fn generate_core_identifier(commit_id: i64, comitter: &str, other: &str) -> Uuid {
+	let sample = format!("{commit_id}{comitter}{other}");
+
+	Uuid::new_v5(&Uuid::NAMESPACE_DNS, sample.as_bytes())
+}
