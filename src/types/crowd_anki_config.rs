@@ -1,48 +1,41 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub enum ConfigType {
 	#[default]
 	DeckConfig,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default)]
 pub struct DeckConfig {
-	// Note: Python uses UUID_FIELD_NAME. If that constant is "crowdanki_uuid", this works.
 	#[serde(skip)]
 	pub crowdanki_uuid: String,
 
-	#[serde(rename = "type")]
-	#[serde(skip)]
-	#[serde(default)]
+	#[serde(rename = "type", skip)]
 	pub kind: ConfigType,
 
 	pub name: String,
 
-	#[serde(rename = "dyn")]
-	#[serde(skip)]
+	#[serde(rename = "dyn", skip)]
 	pub is_dynamic: bool,
 
-	// Anki key: "maxTaken"
-	#[serde(rename = "camelCase")]
+	#[serde(rename = "maxTaken")]
 	pub max_taken: Option<i32>,
-	pub new: Option<NewConfig>,
-	pub rev: Option<RevConfig>,
-	pub lapse: Option<LapseConfig>,
 
-	// These keys are usually lowercase in Anki anyway, but camelCase covers strictness
+	pub new: NewConfig,
+	pub rev: RevConfig,
+	pub lapse: LapseConfig,
+
 	pub autoplay: Option<bool>,
 	pub replayq: Option<bool>,
 	pub timer: Option<i32>,
 	pub another_retreat: Option<bool>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct NewConfig {
 	pub delays: Vec<i32>,
 	pub ints: Vec<i32>,
@@ -53,9 +46,8 @@ pub struct NewConfig {
 	pub separate: Option<bool>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct RevConfig {
 	pub per_day: Option<i32>,
 	pub ease4: Option<f32>,
@@ -67,9 +59,8 @@ pub struct RevConfig {
 	pub bury: Option<bool>,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct LapseConfig {
 	pub delays: Vec<i32>,
 	pub mult: f32,
@@ -79,20 +70,16 @@ pub struct LapseConfig {
 }
 
 impl DeckConfig {
-	pub fn blank(uuid: Uuid) -> Self {
+	pub fn blank(uuid: uuid::Uuid) -> Self {
 		Self {
 			crowdanki_uuid: uuid.to_string(),
-			kind: ConfigType::default(),
 			name: "regex".to_string(),
-			is_dynamic: false,
 			max_taken: Some(100),
-			new: Some(NewConfig::default()),
-			rev: Some(RevConfig::default()),
-			lapse: Some(LapseConfig::default()),
 			autoplay: Some(true),
 			replayq: Some(true),
 			timer: Some(0),
 			another_retreat: Some(false),
+			..Default::default()
 		}
 	}
 }
