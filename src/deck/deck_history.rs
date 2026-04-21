@@ -1,6 +1,5 @@
 use std::{
-	fs::{self, ReadDir},
-	mem,
+	fs, mem,
 	path::{Path, PathBuf},
 };
 
@@ -10,7 +9,6 @@ use chumsky::{
 	input::{Input, Stream},
 	span::SimpleSpan,
 };
-use dir_spec::data_home;
 use gix::{Commit, Repository, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
@@ -24,9 +22,10 @@ use crate::{
 	deck::blob_entry::BEntry,
 	deck_locator::scan_deck_contents,
 	error::DeckError,
-	model_loader,
+	model_catalog::{FilesystemModelCatalog, ModelCatalog},
 	note::identifiable::Identifiable,
 	note::{Identified, Note, NoteField, NoteModel},
+	note_id_generator::{GitNoteIdGenerator, NoteIdGenerator},
 	parser::{ImportExpander, Token, flash},
 	uuid_generator::{self, HostUuid, generate_core_identifier},
 };
@@ -105,17 +104,20 @@ pub fn get_file_history<'a>(
 	}
 }
 
-pub fn find_models() -> Result<ReadDir, DeckError> {
-	let flash_home = data_home().unwrap().join("flash");
-
-	let available_models = fs::read_dir(flash_home)?;
-
-	Ok(available_models)
-}
-
 impl<'b> super::Deck<'b> {
 	#[instrument(skip(deck_path))]
 	pub fn from<P: AsRef<Path>>(deck_path: P) -> Result<Self, DeckError> {
+		let model_catalog = FilesystemModelCatalog;
+		let note_id_generator = GitNoteIdGenerator;
+		Self::from_with(deck_path, &model_catalog, &note_id_generator)
+	}
+
+	#[instrument(skip(deck_path, model_catalog, note_id_generator))]
+	pub fn from_with<P: AsRef<Path>>(
+		deck_path: P,
+		model_catalog: &impl ModelCatalog,
+		note_id_generator: &impl NoteIdGenerator,
+	) -> Result<Self, DeckError> {
 		let deck_path = deck_path.as_ref();
 		info!("Initializing deck from: {:?}", deck_path);
 
@@ -123,14 +125,13 @@ impl<'b> super::Deck<'b> {
 		let card_paths = scan_deck_contents(deck_path)
 			.map_err(|e| DeckError::DeckInit(format!("Failed to scan deck contents: {}", e)))?;
 
-		let model_paths = find_models()?;
-
 		if card_paths.is_empty() {
 			warn!("No card files found in deck directory");
 		}
 
 		// Load models
-		let models = model_loader::load_models(model_paths, deck_path)
+		let models = model_catalog
+			.load_models(deck_path)
 			.map_err(|e| DeckError::DeckInit(format!("Failed to load models: {}", e)))?;
 
 		info!("Loaded {} models", models.len());
@@ -179,8 +180,13 @@ impl<'b> super::Deck<'b> {
 		// for the lifetime 'b of the Deck.
 		let mut cards = unsafe {
 			// Process with temporary lifetime
-			let temp_cards =
-				process_card_history(models.as_ref(), content.as_ref(), &backing_vcs, &history)?;
+			let temp_cards = process_card_history(
+				models.as_ref(),
+				content.as_ref(),
+				&backing_vcs,
+				&history,
+				note_id_generator,
+			)?;
 
 			// Transmute to the target lifetime 'b
 			// This is safe because we're about to move models and content into the Deck,
@@ -227,6 +233,25 @@ impl<'b> super::Deck<'b> {
 		backing_vcs: &Repository,
 		target: (Entry, Commit),
 	) -> Result<Vec<Uuid>, DeckError> {
+		GitNoteIdGenerator.generate_note_ids_for_revision(models, backing_vcs, target)
+	}
+
+	#[cfg(test)]
+	pub(crate) fn parse_cards<'a>(
+		models: &'a [NoteModel],
+		content: &'a str,
+	) -> Result<Vec<Note<'a>>, DeckError> {
+		parse_cards(models, content)
+	}
+}
+
+impl NoteIdGenerator for GitNoteIdGenerator {
+	fn generate_note_ids_for_revision(
+		&self,
+		models: &[NoteModel],
+		backing_vcs: &Repository,
+		target: (Entry, Commit),
+	) -> Result<Vec<Uuid>, DeckError> {
 		let (entry, commit) = target;
 
 		let entry = BEntry::new(&entry)?;
@@ -234,7 +259,7 @@ impl<'b> super::Deck<'b> {
 		let host_uuid =
 			uuid_generator::create_host_uuid(author.name.to_string(), commit.time()?.seconds);
 
-		let file_content = Self::read_file_content(backing_vcs, &entry)?;
+		let file_content = Deck::read_file_content(backing_vcs, &entry)?;
 		let notes = parse_cards(models, &file_content)?;
 
 		let uuids = notes
@@ -247,6 +272,10 @@ impl<'b> super::Deck<'b> {
 
 		debug!("Generated {} UUIDs", notes.len());
 		Ok(uuids)
+	}
+
+	fn generate_note_id_for_added_note(&self, note: &Note) -> Uuid {
+		uuid_generator::generate_note_uuid(&HostUuid::default(), &note.to_content_string())
 	}
 }
 
@@ -313,10 +342,15 @@ fn initialize_cards<'a>(
 	backing_vcs: &Repository,
 	entry: &Entry,
 	commit: &Commit,
+	note_id_generator: &impl NoteIdGenerator,
 	cards: Vec<Note<'a>>,
 ) -> Result<Vec<Identified<Note<'a>>>, DeckError> {
 	// Generate initial set of UUIDs
-	let uuids = Deck::generate_note_uuids(models, backing_vcs, (entry.clone(), commit.clone()))?;
+	let uuids = note_id_generator.generate_note_ids_for_revision(
+		models,
+		backing_vcs,
+		(entry.clone(), commit.clone()),
+	)?;
 
 	Ok(cards.into_iter().zip(uuids).map(|(card, id)| card.identified(id)).collect())
 }
@@ -326,13 +360,14 @@ fn process_cycle(
 	last_cards: &[Note],
 	current_cards: &[Note],
 	static_cards: &mut Vec<Identified<Note>>,
+	note_id_generator: &impl NoteIdGenerator,
 ) -> Result<(), DeckError> {
 	// It might be that a change was made but nothing of note happened, like a misc.
 	// newline, check for this.
 	if let Some(changes) = determine_changes(last_cards, current_cards)? {
 		// Assuming resolve_uuids mutates static_cards in place or returns new value
 		// If it returns a new value:
-		resolve_changes(&changes, static_cards, HostUuid::default());
+		resolve_changes(&changes, static_cards, note_id_generator);
 	}
 	Ok(())
 }
@@ -355,6 +390,7 @@ fn process_card_history<'a>(
 	content: &'a [String],
 	backing_vcs: &Repository,
 	history: &[(Entry, Commit)],
+	note_id_generator: &impl NoteIdGenerator,
 ) -> Result<Vec<Identified<Note<'a>>>, DeckError> {
 	let mut history_iter = history.iter();
 
@@ -365,15 +401,21 @@ fn process_card_history<'a>(
 
 	let mut bygone_cards = first_cards.clone();
 
-	let mut elder_cards =
-		initialize_cards(models, backing_vcs, first_entry, first_commit, first_cards)?;
+	let mut elder_cards = initialize_cards(
+		models,
+		backing_vcs,
+		first_entry,
+		first_commit,
+		note_id_generator,
+		first_cards,
+	)?;
 
 	// Process remaining entries
 	for (idx, _entry_info) in history_iter.enumerate() {
 		let cards_of_the_day = parse_cards(models, &content[idx + 1])?;
 
 		// Make a diff of the changes and update the final cards appropriately
-		process_cycle(&bygone_cards, &cards_of_the_day, &mut elder_cards)?;
+		process_cycle(&bygone_cards, &cards_of_the_day, &mut elder_cards, note_id_generator)?;
 
 		// Cycle complete, the once-new cards lose their youth.
 		bygone_cards = cards_of_the_day;

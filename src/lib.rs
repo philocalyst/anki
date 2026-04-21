@@ -8,8 +8,10 @@ pub mod crowd_anki;
 pub mod deck;
 pub mod deck_locator;
 pub mod error;
+pub mod model_catalog;
 pub mod model_loader;
 pub mod note;
+pub mod note_id_generator;
 pub mod parser;
 pub mod uuid_generator;
 

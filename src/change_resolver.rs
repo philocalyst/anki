@@ -12,7 +12,7 @@ use std::borrow::Cow;
 use crate::{
 	change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders},
 	note::{Identified, Note},
-	uuid_generator::{self, HostUuid},
+	note_id_generator::NoteIdGenerator,
 };
 
 /// This function takes a set of transformations, in order from earliest to
@@ -21,13 +21,12 @@ use crate::{
 pub fn resolve_changes<'a, 'b>(
 	transformations: &Transforms<'a>,
 	substrate: &mut Vec<Identified<Note<'b>>>,
-	host_uuid: HostUuid,
+	note_id_generator: &impl NoteIdGenerator,
 ) {
 	match transformations {
 		Additions(additions) => {
 			for (idx, new_note) in additions {
-				let base_uuid =
-					uuid_generator::generate_note_uuid(&host_uuid, &new_note.to_content_string());
+				let base_uuid = note_id_generator.generate_note_id_for_added_note(new_note);
 				substrate.insert(
 					*idx,
 					Identified {
