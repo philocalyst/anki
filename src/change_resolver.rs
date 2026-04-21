@@ -9,11 +9,9 @@
 
 use std::borrow::Cow;
 
-use uuid::Uuid;
-
 use crate::{
 	change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders},
-	types::note::{Identified, Note},
+	note::{Identified, Note},
 	uuid_generator::{self, HostUuid},
 };
 

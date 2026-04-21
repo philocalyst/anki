@@ -10,17 +10,17 @@ pub struct Template {
 	#[serde(skip)]
 	pub question_format: String,
 	#[serde(skip)]
-	pub answer_format:   String,
+	pub answer_format: String,
 
 	#[serde(skip)]
 	pub browser_question_format: String,
 	#[serde(skip)]
-	pub browser_answer_format:   String,
+	pub browser_answer_format: String,
 }
 
 #[derive(Deserialize, PartialOrd, Ord, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Defaults {
 	pub font: String,
 	pub size: u32,
-	pub rtl:  bool,
+	pub rtl: bool,
 }

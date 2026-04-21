@@ -11,7 +11,7 @@ use chumsky::{
 	span::SimpleSpan,
 };
 use dir_spec::data_home;
-use gix::{Commit, Repository, Tree, object::tree::Entry};
+use gix::{Commit, Repository, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
@@ -19,17 +19,15 @@ use uuid::Uuid;
 use crate::{
 	change_resolver::resolve_changes,
 	change_router::determine_changes,
+	crowd_anki::DeckConfig,
+	deck::Deck,
+	deck::blob_entry::BEntry,
 	deck_locator::scan_deck_contents,
 	error::DeckError,
 	model_loader,
-	parse::{ImportExpander, Token, flash},
-	types::{
-		BEntry,
-		crowd_anki_config::DeckConfig,
-		deck::Deck,
-		note::{Identified, Note, NoteField, NoteModel},
-		note_methods::Identifiable,
-	},
+	note::identifiable::Identifiable,
+	note::{Identified, Note, NoteField, NoteModel},
+	parser::{ImportExpander, Token, flash},
 	uuid_generator::{self, HostUuid, generate_core_identifier},
 };
 
@@ -216,7 +214,7 @@ impl<'b> super::Deck<'b> {
 	#[instrument(skip(backing_vcs))]
 	pub fn read_file_content(backing_vcs: &Repository, entry: &BEntry) -> Result<String, DeckError> {
 		// Retrieve the entries binary representation from the VCS and serialize as UTF8
-		let binary_blob = backing_vcs.find_blob(entry.0.id())?;
+		let binary_blob = backing_vcs.find_blob(entry.entry().id())?;
 		let content = String::from_utf8(binary_blob.data.clone()).map_err(|_| {
 			DeckError::InvalidUtf8(backing_vcs.workdir().expect("Worktree should be checked out").into())
 		})?;

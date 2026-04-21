@@ -1,14 +1,16 @@
 use tracing::{info, instrument, warn};
 
-use crate::types::note::Note;
+use crate::note::Note;
 
 pub mod change_resolver;
 pub mod change_router;
+pub mod crowd_anki;
+pub mod deck;
 pub mod deck_locator;
 pub mod error;
 pub mod model_loader;
-pub mod parse;
-pub mod types;
+pub mod note;
+pub mod parser;
 pub mod uuid_generator;
 
 #[instrument(skip(note))]

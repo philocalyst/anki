@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{error::DeckError, types::note::Note};
+use crate::{error::DeckError, note::Note};
 
 #[derive(Debug, Clone)]
 pub enum Transforms<'a> {

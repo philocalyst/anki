@@ -5,11 +5,11 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use chumsky::{container::Container, input::ValueInput, prelude::*, text::digits};
+use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
 
-use crate::types::note::{Cloze, Field, Note, NoteField, NoteModel, TextElement};
+use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {

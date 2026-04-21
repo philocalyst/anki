@@ -1,8 +1,14 @@
-use std::{fs::{self, ReadDir}, path::{Path, PathBuf}};
+use std::{
+	fs::{self, ReadDir},
+	path::Path,
+};
 
 use tracing::{debug, info, instrument};
 
-use crate::{error::DeckError, types::note::NoteModel};
+use crate::{
+	error::DeckError,
+	note::{NoteModel, Partial},
+};
 
 #[instrument]
 pub fn load_models(model_paths: ReadDir, deck_path: &Path) -> Result<Vec<NoteModel>, DeckError> {
@@ -20,7 +26,7 @@ pub fn load_models(model_paths: ReadDir, deck_path: &Path) -> Result<Vec<NoteMod
 			.map_err(|_| DeckError::ModelConfigNotFound(config_path.clone()))?;
 
 		// TODO: Make errors lossless, this caused a traumatic error...
-		let model: NoteModel<crate::types::note::Partial> = toml::from_str(&config_content).unwrap();
+		let model: NoteModel<Partial> = toml::from_str(&config_content).unwrap();
 
 		// TODO: This path should be more dynamic
 		let model = model.complete(model_path.as_path())?;

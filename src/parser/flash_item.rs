@@ -1,4 +1,4 @@
-use crate::types::note::TextElement;
+use crate::note::TextElement;
 
 // struct ParserNoteModel<'a> {
 // 	pub model:   Option<&'a NoteModel>,
