@@ -2,10 +2,7 @@ use std::{fs, path::Path};
 
 use tracing::{debug, info};
 
-use crate::{
-	error::DeckError,
-	note::{Complete, NoteModel, Partial},
-};
+use crate::{error::DeckError, note::{Complete, NoteModel, Partial}};
 
 impl NoteModel<Partial> {
 	pub fn complete(self, dir: &Path) -> Result<NoteModel<Complete>, DeckError> {
@@ -63,12 +60,12 @@ impl NoteModel<Partial> {
 					t
 				} else {
 					templates.push(crate::note::model_config::Template {
-						name: template_name.clone(),
-						order: templates.len() as i32,
-						question_format: String::new(),
-						answer_format: String::new(),
+						name:                    template_name.clone(),
+						order:                   templates.len() as i32,
+						question_format:         String::new(),
+						answer_format:           String::new(),
 						browser_question_format: String::new(),
-						browser_answer_format: String::new(),
+						browser_answer_format:   String::new(),
 					});
 					templates.last_mut().unwrap()
 				};

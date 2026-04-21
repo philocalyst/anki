@@ -1,16 +1,9 @@
-use std::{
-	error::Error,
-	fs,
-	path::{Path, PathBuf},
-	process::{Command, Output},
-};
+use std::{error::Error, fs, path::{Path, PathBuf}, process::{Command, Output}};
 
 use serde_json::Value;
 use tempfile::TempDir;
 
-fn fixture_path(relative: &str) -> PathBuf {
-	Path::new(env!("CARGO_MANIFEST_DIR")).join(relative)
-}
+fn fixture_path(relative: &str) -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join(relative) }
 
 fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), Box<dyn Error>> {
 	fs::create_dir_all(destination)?;

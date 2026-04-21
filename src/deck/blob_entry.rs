@@ -18,12 +18,8 @@ impl<'a, 'repo> TryFrom<&'a Entry<'repo>> for BEntry<'a, 'repo> {
 }
 
 impl<'a, 'repo> BEntry<'a, 'repo> {
-	pub fn new(entry: &'a Entry<'repo>) -> Result<Self, DeckError> {
-		Self::try_from(entry)
-	}
+	pub fn new(entry: &'a Entry<'repo>) -> Result<Self, DeckError> { Self::try_from(entry) }
 
 	/// Access the underlying entry
-	pub fn entry(&self) -> &Entry<'repo> {
-		self.0
-	}
+	pub fn entry(&self) -> &Entry<'repo> { self.0 }
 }

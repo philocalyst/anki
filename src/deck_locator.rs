@@ -1,7 +1,4 @@
-use std::{
-	fs,
-	path::{Path, PathBuf},
-};
+use std::{fs, path::{Path, PathBuf}};
 
 use tracing::{debug, error, info, instrument};
 

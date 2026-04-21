@@ -1,8 +1,4 @@
-use crate::{
-	crowd_anki::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType},
-	deck::Deck,
-	note::{Cloze, Identified, Note as FlashNote, NoteModel, TextElement},
-};
+use crate::{crowd_anki::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, Note as FlashNote, NoteModel, TextElement}};
 
 impl<'a> From<Deck<'a>> for CrowdAnkiEntity {
 	fn from(deck: Deck<'a>) -> Self {
@@ -40,52 +36,52 @@ impl<'a> From<&'a NoteModel> for crate::crowd_anki::NoteModel {
 	fn from(model: &'a NoteModel) -> Self {
 		crate::crowd_anki::NoteModel {
 			crowdanki_uuid: model.id.to_string(),
-			name: model.name.clone(),
-			kind: NoteModelType::Standard,
-			flds: model
+			name:           model.name.clone(),
+			kind:           NoteModelType::Standard,
+			flds:           model
 				.fields
 				.iter()
 				.enumerate()
 				.map(|(idx, field)| Field {
-					name: field.name.clone(),
-					ord: idx as i32,
+					name:   field.name.clone(),
+					ord:    idx as i32,
 					sticky: field.sticky.unwrap_or(false),
-					rtl: model.defaults.as_ref().map(|d| d.rtl).unwrap_or(false),
-					font: model
+					rtl:    model.defaults.as_ref().map(|d| d.rtl).unwrap_or(false),
+					font:   model
 						.defaults
 						.as_ref()
 						.map(|d| d.font.clone())
 						.unwrap_or_else(|| "Arial".to_string()),
-					size: model.defaults.as_ref().map(|d| d.size).unwrap_or(20) as i32,
-					media: Vec::new(),
+					size:   model.defaults.as_ref().map(|d| d.size).unwrap_or(20) as i32,
+					media:  Vec::new(),
 				})
 				.collect(),
-			tmpls: model
+			tmpls:          model
 				.templates
 				.iter()
 				.enumerate()
 				.map(|(idx, tmpl)| crate::crowd_anki::Template {
-					name: tmpl.name.clone(),
-					ord: idx as i32,
-					qfmt: tmpl.question_format.clone(),
-					afmt: tmpl.answer_format.clone(),
+					name:  tmpl.name.clone(),
+					ord:   idx as i32,
+					qfmt:  tmpl.question_format.clone(),
+					afmt:  tmpl.answer_format.clone(),
 					bafmt: Some(tmpl.browser_answer_format.clone()),
 					bqfmt: Some(tmpl.browser_question_format.clone()),
-					did: None,
+					did:   None,
 				})
 				.collect(),
-			css: model.css.clone(),
-			did: None,
-			latex_pre: model.latex_pre.clone(),
-			latex_post: model.latex_post.clone(),
-			req: None,
-			sortf: model
+			css:            model.css.clone(),
+			did:            None,
+			latex_pre:      model.latex_pre.clone(),
+			latex_post:     model.latex_post.clone(),
+			req:            None,
+			sortf:          model
 				.sort_field
 				.as_ref()
 				.and_then(|sf| model.fields.iter().position(|f| f.name == *sf))
 				.map(|pos| pos as i32),
-			tags: model.tags.clone(),
-			vers: None,
+			tags:           model.tags.clone(),
+			vers:           None,
 		}
 	}
 }
@@ -107,9 +103,9 @@ impl<'a> From<Identified<FlashNote<'a>>> for Note {
 	fn from(note: Identified<FlashNote<'a>>) -> Self {
 		let inner_note = note.inner;
 		Note {
-			guid: note.id.to_string(),
+			guid:            note.id.to_string(),
 			note_model_uuid: inner_note.model.id.to_string(),
-			fields: inner_note
+			fields:          inner_note
 				.fields
 				.into_iter()
 				.map(|field| {
@@ -127,10 +123,10 @@ impl<'a> From<Identified<FlashNote<'a>>> for Note {
 						.collect::<String>()
 				})
 				.collect(),
-			tags: inner_note.tags,
-			flags: 0,
-			newly_added: true,
-			data: None,
+			tags:            inner_note.tags,
+			flags:           0,
+			newly_added:     true,
+			data:            None,
 		}
 	}
 }

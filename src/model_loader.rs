@@ -1,14 +1,8 @@
-use std::{
-	fs::{self, ReadDir},
-	path::Path,
-};
+use std::{fs::{self, ReadDir}, path::Path};
 
 use tracing::{debug, info, instrument};
 
-use crate::{
-	error::DeckError,
-	note::{NoteModel, Partial},
-};
+use crate::{error::DeckError, note::{NoteModel, Partial}};
 
 #[instrument]
 pub fn load_models(model_paths: ReadDir, deck_path: &Path) -> Result<Vec<NoteModel>, DeckError> {

@@ -1,27 +1,21 @@
-use std::{
-	borrow::Cow,
-	collections::{HashMap, HashSet},
-	fs,
-	path::{Path, PathBuf},
-};
+use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
 use logos::Logos;
-
-use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
-
-#[cfg(test)]
-use crate::{deck::Deck, note::Field};
 #[cfg(test)]
 use semver::Version;
 #[cfg(test)]
 use uuid::Uuid;
 
+use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
+#[cfg(test)]
+use crate::{deck::Deck, note::Field};
+
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited: HashSet<PathBuf>,
+	visited:  HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -332,10 +326,10 @@ where
 
 /// Build a note from parsed components
 struct NoteComponents<'m> {
-	model: &'m NoteModel,
+	model:   &'m NoteModel,
 	aliases: HashMap<String, String>,
-	tags: Vec<String>,
-	fields: Vec<NoteField>,
+	tags:    Vec<String>,
+	fields:  Vec<NoteField>,
 }
 
 impl<'m> NoteComponents<'m> {
@@ -530,22 +524,22 @@ for (i, model_field) in fields.iter().enumerate() {
 #[cfg(test)]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name: "Basic".to_string(),
-		id: Uuid::new_v4(),
-		templates: vec![],
+		name:           "Basic".to_string(),
+		id:             Uuid::new_v4(),
+		templates:      vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults: None,
-		css: "".to_string(),
-		fields: vec![
+		defaults:       None,
+		css:            "".to_string(),
+		fields:         vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre: None,
-		latex_post: None,
-		sort_field: None,
-		tags: None,
+		latex_pre:      None,
+		latex_post:     None,
+		sort_field:     None,
+		tags:           None,
 		// Requirement: Front must be present
-		required: evalexpr::build_operator_tree("Front").unwrap(),
+		required:       evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
 

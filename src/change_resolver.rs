@@ -9,11 +9,7 @@
 
 use std::borrow::Cow;
 
-use crate::{
-	change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders},
-	note::{Identified, Note},
-	note_id_generator::NoteIdGenerator,
-};
+use crate::{change_router::Transforms::{self, Additions, Deletions, Modifications, Reorders}, note::{Identified, Note}, note_id_generator::NoteIdGenerator};
 
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
@@ -27,17 +23,14 @@ pub fn resolve_changes<'a, 'b>(
 		Additions(additions) => {
 			for (idx, new_note) in additions {
 				let base_uuid = note_id_generator.generate_note_id_for_added_note(new_note);
-				substrate.insert(
-					*idx,
-					Identified {
-						id: base_uuid,
-						inner: Note {
-							fields: new_note.fields.clone(),
-							model: Cow::Owned(new_note.model.clone().into_owned()),
-							tags: new_note.tags.clone(),
-						},
+				substrate.insert(*idx, Identified {
+					id:    base_uuid,
+					inner: Note {
+						fields: new_note.fields.clone(),
+						model:  Cow::Owned(new_note.model.clone().into_owned()),
+						tags:   new_note.tags.clone(),
 					},
-				);
+				});
 			}
 		}
 		Deletions(deletions) => {
@@ -50,11 +43,11 @@ pub fn resolve_changes<'a, 'b>(
 			for (idx, modified_note) in modifications {
 				let existing_id = substrate[*idx].id;
 				substrate[*idx] = Identified {
-					id: existing_id,
+					id:    existing_id,
 					inner: Note {
 						fields: modified_note.fields.clone(),
-						model: Cow::Owned(modified_note.model.clone().into_owned()),
-						tags: modified_note.tags.clone(),
+						model:  Cow::Owned(modified_note.model.clone().into_owned()),
+						tags:   modified_note.tags.clone(),
 					},
 				};
 			}

@@ -5,23 +5,20 @@ use semver::Version;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::note::{
-	identifiable::Identifiable,
-	model_config::{Defaults, Template},
-};
+use crate::note::{identifiable::Identifiable, model_config::{Defaults, Template}};
 
 // Wrapper that adds an ID to any type
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Identified<T> {
-	pub id: Uuid,
+	pub id:    Uuid,
 	pub inner: T,
 }
 
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct Note<'a> {
 	pub fields: Vec<NoteField>,
-	pub model: Cow<'a, NoteModel>,
-	pub tags: Vec<String>,
+	pub model:  Cow<'a, NoteModel>,
+	pub tags:   Vec<String>,
 }
 
 // All notes can be identified
@@ -29,7 +26,7 @@ impl Identifiable for Note<'_> {}
 
 #[derive(Debug, PartialOrd, Ord, Default, Eq, Clone, PartialEq)]
 pub struct NoteField {
-	pub name: String,
+	pub name:    String,
 	pub content: Vec<TextElement>,
 }
 
@@ -88,13 +85,13 @@ pub struct NoteModel<Stage: ModelStage = Complete> {
 	pub fields: Vec<Field>,
 
 	#[serde(skip)]
-	pub latex_pre: Stage::Latex,
+	pub latex_pre:  Stage::Latex,
 	#[serde(skip)]
 	pub latex_post: Stage::Latex,
 
 	// The field to sort around
 	pub sort_field: Option<String>,
-	pub tags: Option<Vec<String>>,
+	pub tags:       Option<Vec<String>>,
 
 	// The required fields are determined at runtime, this String holds a boolean expression that
 	// affirms this.
@@ -104,21 +101,21 @@ pub struct NoteModel<Stage: ModelStage = Complete> {
 impl Default for NoteModel<Complete> {
 	fn default() -> Self {
 		Self {
-			name: String::from("Default Model"),
-			id: Uuid::new_v4(),
-			templates: Vec::new(),
+			name:           String::from("Default Model"),
+			id:             Uuid::new_v4(),
+			templates:      Vec::new(),
 			// semver::Version doesn't have Default. 0.1.0 is the standard starting point.
 			schema_version: Version::new(0, 1, 0),
-			defaults: None,
-			css: String::new(),
-			fields: Vec::new(),
-			latex_pre: None,
-			latex_post: None,
-			sort_field: None,
-			tags: None,
+			defaults:       None,
+			css:            String::new(),
+			fields:         Vec::new(),
+			latex_pre:      None,
+			latex_post:     None,
+			sort_field:     None,
+			tags:           None,
 			// evalexpr::Node doesn't have Default.
 			// Parsing "true" ensures validation passes if no constraints are set.
-			required: evalexpr::build_operator_tree("true").unwrap(),
+			required:       evalexpr::build_operator_tree("true").unwrap(),
 		}
 	}
 }
@@ -126,29 +123,29 @@ impl Default for NoteModel<Complete> {
 impl Default for NoteModel<Partial> {
 	fn default() -> Self {
 		Self {
-			name: Some(String::from("Default Model")),
-			id: Uuid::new_v4(),
-			templates: Vec::new(),
+			name:           Some(String::from("Default Model")),
+			id:             Uuid::new_v4(),
+			templates:      Vec::new(),
 			schema_version: Version::new(0, 1, 0),
-			defaults: None,
-			css: String::new(),
-			fields: Vec::new(),
-			latex_pre: None,
-			latex_post: None,
-			sort_field: None,
-			tags: None,
+			defaults:       None,
+			css:            String::new(),
+			fields:         Vec::new(),
+			latex_pre:      None,
+			latex_post:     None,
+			sort_field:     None,
+			tags:           None,
 			// evalexpr::Node doesn't have Default.
 			// Parsing "true" ensures validation passes if no constraints are set.
-			required: evalexpr::build_operator_tree("true").unwrap(),
+			required:       evalexpr::build_operator_tree("true").unwrap(),
 		}
 	}
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, Clone, PartialEq)]
 pub struct Cloze {
-	pub id: u32,
+	pub id:     u32,
 	pub answer: String,
-	pub hint: Option<String>,
+	pub hint:   Option<String>,
 }
 
 #[derive(Debug, PartialOrd, Ord, Eq, Clone, PartialEq)]
@@ -159,7 +156,7 @@ pub enum TextElement {
 
 #[derive(Deserialize, Ord, PartialOrd, Eq, Hash, Clone, PartialEq, Debug)]
 pub struct Field {
-	pub name: String,
-	pub sticky: Option<bool>,
+	pub name:             String,
+	pub sticky:           Option<bool>,
 	pub associated_media: Option<Vec<PathBuf>>,
 }

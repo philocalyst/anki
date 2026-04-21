@@ -74,10 +74,10 @@ pub enum CrowdAnkiEntity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Deck {
-	pub name: String,
-	pub crowdanki_uuid: String,
+	pub name:             String,
+	pub crowdanki_uuid:   String,
 	pub deck_config_uuid: String,
-	pub desc: String,
+	pub desc:             String,
 
 	#[serde(rename = "dyn")]
 	pub is_dynamic: i32,
@@ -88,26 +88,26 @@ pub struct Deck {
 	#[serde(rename = "extendRev")]
 	pub extend_rev: i32,
 
-	pub note_models: Vec<NoteModel>,
+	pub note_models:         Vec<NoteModel>,
 	pub deck_configurations: Vec<DeckConfig>,
-	pub notes: Vec<Note>,
-	pub children: Vec<Deck>,
-	pub media_files: Vec<String>,
+	pub notes:               Vec<Note>,
+	pub children:            Vec<Deck>,
+	pub media_files:         Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteModel {
 	pub crowdanki_uuid: String,
-	pub name: String,
+	pub name:           String,
 
 	#[serde(rename = "type")]
 	#[serde(skip)]
 	#[serde(default)]
 	pub kind: NoteModelType,
 
-	pub flds: Vec<Field>,
+	pub flds:  Vec<Field>,
 	pub tmpls: Vec<Template>,
-	pub css: String,
+	pub css:   String,
 
 	#[serde(default)]
 	pub did: Option<i64>,
@@ -132,21 +132,21 @@ pub struct NoteModel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Field {
-	pub name: String,
-	pub ord: i32,
+	pub name:   String,
+	pub ord:    i32,
 	pub sticky: bool,
-	pub rtl: bool,
-	pub font: String,
-	pub size: i32,
-	pub media: Vec<String>,
+	pub rtl:    bool,
+	pub font:   String,
+	pub size:   i32,
+	pub media:  Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
-	pub name: String,
-	pub ord: i32,
-	pub qfmt: String,
-	pub afmt: String,
+	pub name:  String,
+	pub ord:   i32,
+	pub qfmt:  String,
+	pub afmt:  String,
 	pub bafmt: Option<String>,
 	pub bqfmt: Option<String>,
 
@@ -156,11 +156,11 @@ pub struct Template {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
-	pub guid: String,
+	pub guid:            String,
 	pub note_model_uuid: String,
-	pub fields: Vec<String>,
-	pub tags: Vec<String>,
-	pub flags: i32,
+	pub fields:          Vec<String>,
+	pub tags:            Vec<String>,
+	pub flags:           i32,
 
 	#[serde(default)]
 	#[serde(rename = "newlyAdded")]

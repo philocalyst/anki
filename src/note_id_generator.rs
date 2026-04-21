@@ -1,10 +1,7 @@
 use gix::{Commit, Repository, object::tree::Entry};
 use uuid::Uuid;
 
-use crate::{
-	error::DeckError,
-	note::{Note, NoteModel},
-};
+use crate::{error::DeckError, note::{Note, NoteModel}};
 
 pub trait NoteIdGenerator {
 	fn generate_note_ids_for_revision(

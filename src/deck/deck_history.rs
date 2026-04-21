@@ -1,34 +1,13 @@
-use std::{
-	fs, mem,
-	path::{Path, PathBuf},
-};
+use std::{fs, mem, path::{Path, PathBuf}};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{
-	Parser,
-	input::{Input, Stream},
-	span::SimpleSpan,
-};
+use chumsky::{Parser, input::{Input, Stream}, span::SimpleSpan};
 use gix::{Commit, Repository, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{
-	change_resolver::resolve_changes,
-	change_router::determine_changes,
-	crowd_anki::DeckConfig,
-	deck::Deck,
-	deck::blob_entry::BEntry,
-	deck_locator::scan_deck_contents,
-	error::DeckError,
-	model_catalog::{FilesystemModelCatalog, ModelCatalog},
-	note::identifiable::Identifiable,
-	note::{Identified, Note, NoteField, NoteModel},
-	note_id_generator::{GitNoteIdGenerator, NoteIdGenerator},
-	parser::{ImportExpander, Token, flash},
-	uuid_generator::{self, HostUuid, generate_core_identifier},
-};
+use crate::{change_resolver::resolve_changes, change_router::determine_changes, crowd_anki::DeckConfig, deck::{Deck, blob_entry::BEntry}, deck_locator::scan_deck_contents, error::DeckError, model_catalog::{FilesystemModelCatalog, ModelCatalog}, note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable}, note_id_generator::{GitNoteIdGenerator, NoteIdGenerator}, parser::{ImportExpander, Token, flash}, uuid_generator::{self, HostUuid, generate_core_identifier}};
 
 pub fn get_file_history<'a>(
 	vcs: &'a Repository,
@@ -160,7 +139,7 @@ impl<'b> super::Deck<'b> {
 			DeckConfig::blank(deck_identifer)
 		};
 
-		if configuration.crowdanki_uuid == "" {
+		if configuration.crowdanki_uuid.is_empty() {
 			configuration.crowdanki_uuid = deck_identifer.to_string()
 		}
 
@@ -279,7 +258,7 @@ impl NoteIdGenerator for GitNoteIdGenerator {
 	}
 }
 
-fn derive_core_id<'a>(vcs: &'a Repository) -> Result<Uuid, DeckError> {
+fn derive_core_id(vcs: &Repository) -> Result<Uuid, DeckError> {
 	let head_id = vcs.head_id().unwrap();
 	let walk = vcs.rev_walk([head_id]).all()?;
 
