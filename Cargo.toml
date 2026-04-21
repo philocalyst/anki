@@ -33,6 +33,9 @@ uuid = { version = "1.18.1", features = ["serde", "v4", "v5"] }
 default = ["serde"]
 serde = []
 
+[dev-dependencies]
+tempfile = "3.23.0"
+
 [workspace.lints.rust]
 mismatched_lifetime_syntaxes = "deny"
 unused_imports = "deny"
@@ -68,4 +71,3 @@ unnecessary_debug_formatting = "allow"
 significant_drop_tightening = "allow"
 missing_panics_doc = "allow"
 multiple_crate_versions = "allow"
-

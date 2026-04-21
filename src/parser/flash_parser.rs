@@ -11,6 +11,13 @@ use logos::Logos;
 
 use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 
+#[cfg(test)]
+use crate::{deck::Deck, note::Field};
+#[cfg(test)]
+use semver::Version;
+#[cfg(test)]
+use uuid::Uuid;
+
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
@@ -520,7 +527,7 @@ for (i, model_field) in fields.iter().enumerate() {
 		.then_ignore(end())
 }
 
-#[test]
+#[cfg(test)]
 fn mock_model() -> NoteModel {
 	NoteModel {
 		name: "Basic".to_string(),
@@ -543,26 +550,33 @@ fn mock_model() -> NoteModel {
 }
 
 #[test]
+#[cfg(test)]
 fn test_alias_and_multiple_notes() {
 	let models = vec![mock_model()];
 	let input = r#"
-= Basic =
+/ Basic /
 alias Front to f
 alias Back to b
 
--Front-
-	What is Rust?
--Back-
-	A systems programming language.
+(Front) What is Rust?
+(Back) A systems programming language.
 
-{f} Is it fast?
-{b} Yes.
+(f) Is it fast?
+(b) Yes.
 "#;
 
 	let notes = Deck::parse_cards(&models, input).expect("Should parse successfully");
+	let first_field_content = notes[0].fields[0]
+		.content
+		.iter()
+		.map(|element| match element {
+			TextElement::Text(text) => text.as_str(),
+			TextElement::Cloze(_) => "",
+		})
+		.collect::<String>();
 
 	assert_eq!(notes.len(), 2);
 	assert_eq!(notes[0].fields[0].name, "Front");
-	assert_eq!(notes[0].fields[0].content[0], TextElement::Text("What is Rust?".to_string()));
+	assert_eq!(first_field_content, "What is Rust?");
 	assert_eq!(notes[1].fields[0].name, "Front");
 }
