@@ -16,7 +16,7 @@ pub struct Identified<T> {
 
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
 pub struct Note<'a> {
-	pub fields: Vec<NoteField>,
+	pub fields: Vec<NoteField<'a>>,
 	pub model:  Cow<'a, NoteModel>,
 	pub tags:   Vec<String>,
 }
@@ -25,9 +25,9 @@ pub struct Note<'a> {
 impl Identifiable for Note<'_> {}
 
 #[derive(Debug, PartialOrd, Ord, Default, Eq, Clone, PartialEq)]
-pub struct NoteField {
+pub struct NoteField<'content> {
 	pub name:    String,
-	pub content: Vec<TextElement>,
+	pub content: Vec<TextElement<'content>>,
 }
 
 pub trait ModelStage: Default + Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Hash {
@@ -141,17 +141,27 @@ impl Default for NoteModel<Partial> {
 	}
 }
 
-#[derive(Debug, Ord, PartialOrd, Eq, Clone, PartialEq)]
-pub struct Cloze {
+type Djot<'content> = Vec<jotdown::Event<'content>>;
+
+#[derive(Debug, Eq, Clone, PartialEq)]
+pub struct Cloze<'content> {
 	pub id:     u32,
-	pub answer: String,
+	pub answer: Djot<'content>,
 	pub hint:   Option<String>,
 }
 
+impl Ord for Cloze<'_> {
+	fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.id.cmp(&other.id) }
+}
+
+impl PartialOrd for Cloze<'_> {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
 #[derive(Debug, PartialOrd, Ord, Eq, Clone, PartialEq)]
-pub enum TextElement {
+pub enum TextElement<'content> {
 	Text(String),
-	Cloze(Cloze),
+	Cloze(Cloze<'content>),
 }
 
 #[derive(Deserialize, Ord, PartialOrd, Eq, Hash, Clone, PartialEq, Debug)]

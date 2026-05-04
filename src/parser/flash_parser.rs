@@ -259,7 +259,7 @@ where
 /// Parse cloze: {Answer|Hint>Id}
 /// Parse cloze: {Answer|Hint} or just { if incomplete
 fn cloze<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, TextElement, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+-> impl Parser<'tokens, I, TextElement<'src>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
@@ -272,15 +272,17 @@ where
 		Token::Colon => ":",
 	};
 
-	let cloze_part = cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
-	let hint = just(Token::Pipe).ignore_then(cloze_part).map(|s| s.trim().to_string()).or_not();
+	let internal_content =
+		cloze_chars.repeated().at_least(1).collect::<Vec<&str>>().map(|v| v.concat());
+
+	let hint = just(Token::Pipe).ignore_then(internal_content).map(|s| s.trim().to_string()).or_not();
 
 	// TODO: Fail on a non-number input
 	let id = just(Token::RArrow).ignore_then(cloze_chars).or_not();
 
 	// Try complete cloze pattern with closing brace
 	let complete_cloze = just(Token::LBrace)
-		.ignore_then(cloze_part.map(|s| s.trim().to_string()))
+		.ignore_then(internal_content.map(|s| s.trim().to_string()))
 		.then(hint)
 		.then(id)
 		.then_ignore(just(Token::RBrace))
@@ -294,7 +296,7 @@ where
 
 /// Parse field content (text and clozes)
 fn field_content<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, Vec<TextElement>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+-> impl Parser<'tokens, I, Vec<TextElement<'src>>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
@@ -308,7 +310,7 @@ where
 }
 
 fn field_declaration<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, NoteField, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
+-> impl Parser<'tokens, I, NoteField<'src>, extra::Err<Rich<'tokens, Token<'src>, Span>>> + Clone
 where
 	I: ValueInput<'tokens, Token = Token<'src>, Span = Span>,
 {
@@ -329,7 +331,7 @@ struct NoteComponents<'m> {
 	model:   &'m NoteModel,
 	aliases: HashMap<String, String>,
 	tags:    Vec<String>,
-	fields:  Vec<NoteField>,
+	fields:  Vec<NoteField<'m>>,
 }
 
 impl<'m> NoteComponents<'m> {
@@ -350,7 +352,7 @@ impl<'m> NoteComponents<'m> {
 fn note<'tokens, 'src: 'tokens, I>() -> impl Parser<
 	'tokens,
 	I,
-	(Option<Vec<String>>, Vec<NoteField>),
+	(Option<Vec<String>>, Vec<NoteField<'src>>),
 	extra::Err<Rich<'tokens, Token<'src>, Span>>,
 > + Clone
 where
@@ -399,7 +401,7 @@ where
 		.then_ignore(noise().repeated())
 }
 
-type RawNote = (Option<Vec<String>>, Vec<NoteField>);
+type RawNote<'src> = (Option<Vec<String>>, Vec<NoteField<'src>>);
 
 pub fn flash<'tokens, 'src: 'tokens, I>(
 	available_models: &'tokens [NoteModel],
@@ -472,11 +474,11 @@ for (i, model_field) in fields.iter().enumerate() {
 			// Reset context
 			let mut context = context.clone();
 
-
-
 			// Validate fields against model (with alias resolution)
 			for field in &fields {
 				let resolved_name = alias_map.get(&field.name).or(unique_prefix.get(&field.name)).unwrap_or(&field.name);
+
+				dbg!(&resolved_name);
 				// Setting the fields provided to true within the evaluation context
 				eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
 
