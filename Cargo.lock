@@ -515,6 +515,7 @@ dependencies = [
  "eyre",
  "fs-err",
  "gix",
+ "jotdown",
  "logos",
  "opentelemetry",
  "opentelemetry-stdout",
@@ -1838,6 +1839,12 @@ checksum = "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8"
 dependencies = [
  "jiff-tzdb",
 ]
+
+[[package]]
+name = "jotdown"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "206bf4773a58f2a051a24fb77cb6c5eeaa84403c0dc5d072ec460ed1648db594"
 
 [[package]]
 name = "js-sys"
