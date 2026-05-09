@@ -35,10 +35,15 @@ struct Args {
 	output: PathBuf,
 }
 
-fn main() -> Result<()> {
+fn init() -> Result<()> {
 	init_tracing();
 	color_eyre::install()?;
 
+	Ok(())
+}
+
+fn main() -> Result<()> {
+	init();
 	let args = Args::parse();
 
 	info!("Starting Anki deck parser");
