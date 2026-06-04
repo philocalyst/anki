@@ -3,21 +3,21 @@ use std::collections::HashSet;
 use crate::{error::DeckError, note::Note};
 
 #[derive(Debug, Clone)]
-pub enum Transforms<'a, 'b> {
-	Additions(Vec<(usize, &'a Note<'b>)>),
+pub enum Transforms<'borrow, 'content> {
+	Additions(Vec<(usize, &'borrow Note<'content>)>),
 	Deletions(Vec<usize>),
-	Modifications(Vec<(usize, &'a Note<'b>)>),
+	Modifications(Vec<(usize, &'borrow Note<'content>)>),
 	Reorders(HashSet<(usize, usize)>),
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
-pub fn determine_changes<'a, 'b>(
+pub fn determine_changes<'borrow, 'content>(
 	deck_1: &[Note],
-	deck_2: &'a [Note<'b>],
+	deck_2: &'borrow [Note<'content>],
 	// Transforms are relevant only to the new deck
-) -> Result<Option<Transforms<'a, 'b>>, DeckError> {
+) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
 	// Early return if decks are identical - no changes needed
 	if deck_1 == deck_2 {
 		return Ok(None);

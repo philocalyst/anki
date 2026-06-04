@@ -77,7 +77,7 @@ type Span = SimpleSpan;
 
 use std::fmt;
 
-impl<'a> fmt::Display for Token<'a> {
+impl<'src> fmt::Display for Token<'src> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Slash => write!(f, "/"),
@@ -103,7 +103,7 @@ impl<'a> fmt::Display for Token<'a> {
 }
 
 #[derive(Logos, Clone, Debug, PartialEq)]
-pub enum Token<'a> {
+pub enum Token<'src> {
 	#[token("/")]
 	Slash,
 
@@ -147,13 +147,13 @@ pub enum Token<'a> {
 	Newline,
 
 	#[regex(r"[ \t]+")]
-	WS(&'a str),
+	WS(&'src str),
 
 	#[regex(r"[^ \t\n:=\[\](){},|/]+", priority = 4)]
-	Text(&'a str),
+	Text(&'src str),
 
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
-	Comment(&'a str),
+	Comment(&'src str),
 
 	Error,
 }
@@ -330,15 +330,15 @@ where
 // Note Builder
 
 /// Build a note from parsed components
-struct NoteComponents<'m> {
-	model:   &'m NoteModel,
+struct NoteComponents<'model> {
+	model:   &'model NoteModel,
 	aliases: HashMap<String, String>,
 	tags:    Vec<String>,
-	fields:  Vec<NoteField<'m>>,
+	fields:  Vec<NoteField<'model>>,
 }
 
-impl<'m> NoteComponents<'m> {
-	fn into_note(mut self) -> Note<'m> {
+impl<'model> NoteComponents<'model> {
+	fn into_note(mut self) -> Note<'model> {
 		// Resolve aliases in fields
 		for field in &mut self.fields {
 			// Get the corresponding alias

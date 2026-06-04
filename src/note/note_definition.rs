@@ -15,9 +15,9 @@ pub struct Identified<T> {
 }
 
 #[derive(Debug, PartialOrd, Ord, Clone, Eq, PartialEq)]
-pub struct Note<'a> {
-	pub fields: Vec<NoteField<'a>>,
-	pub model:  Cow<'a, NoteModel>,
+pub struct Note<'model> {
+	pub fields: Vec<NoteField<'model>>,
+	pub model:  Cow<'model, NoteModel>,
 	pub tags:   Vec<String>,
 }
 

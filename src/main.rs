@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf};
 use clap::Parser;
 use eyre::{Context, Result};
 use flash::{crowd_anki::CrowdAnkiEntity, deck::Deck};
+use gix::{ThreadSafeRepository, create::{Kind, Options}, open::Options};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -70,4 +71,14 @@ fn main() -> Result<()> {
 	info!("Deck parsing completed ({} deck(s))", args.decks.len());
 
 	Ok(())
+}
+
+/// Create a template repository
+fn create_template(where: PathBuf, ) -> {
+	let repo =	ThreadSafeRepository::init_opts(where, Kind::WithWorktree, Options::default(), Options::default());
+
+	let flash_entry = where.join("index.flash");
+
+	// Empt for now
+	fs::write(flash_entry, "");
 }

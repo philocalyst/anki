@@ -2,7 +2,7 @@ use tracing::instrument;
 
 use crate::note::{Note, TextElement, djot_to_string};
 
-impl<'a> Note<'a> {
+impl<'model> Note<'model> {
 	/// Generate a deterministic string representation of the note's content
 	/// for UUID generation
 	#[instrument(skip(self))]

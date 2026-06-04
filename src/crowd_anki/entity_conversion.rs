@@ -1,7 +1,7 @@
 use crate::{crowd_anki::{CrowdAnkiEntity, Deck as CrowdAnkiDeck, Field, Note, NoteModelType}, deck::Deck, note::{Cloze, Identified, Note as FlashNote, NoteModel, TextElement}};
 
-impl<'a> From<Deck<'a>> for CrowdAnkiEntity {
-	fn from(deck: Deck<'a>) -> Self {
+impl<'model> From<Deck<'model>> for CrowdAnkiEntity {
+	fn from(deck: Deck<'model>) -> Self {
 		// Convert note models from deck to CrowdAnki format
 		let note_models: Vec<crate::crowd_anki::NoteModel> =
 			deck.models.iter().map(|model| model.into()).collect();
@@ -32,8 +32,8 @@ impl<'a> From<Deck<'a>> for CrowdAnkiEntity {
 	}
 }
 
-impl<'a> From<&'a NoteModel> for crate::crowd_anki::NoteModel {
-	fn from(model: &'a NoteModel) -> Self {
+impl<'model> From<&'model NoteModel> for crate::crowd_anki::NoteModel {
+	fn from(model: &'model NoteModel) -> Self {
 		crate::crowd_anki::NoteModel {
 			crowdanki_uuid: model.id.to_string(),
 			name:           model.name.clone(),
@@ -89,8 +89,8 @@ impl<'a> From<&'a NoteModel> for crate::crowd_anki::NoteModel {
 /// This type represents Cloze's as anki expects them in note fields
 pub struct ClozeString(String);
 
-impl<'a> From<Cloze<'a>> for ClozeString {
-	fn from(cloze: Cloze<'a>) -> Self {
+impl<'content> From<Cloze<'content>> for ClozeString {
+	fn from(cloze: Cloze<'content>) -> Self {
 		let answer = crate::note::djot_to_string(&cloze.answer);
 		if let Some(hint) = cloze.hint {
 			ClozeString(format!("{{{{c{}::{}::{}}}}}", cloze.id, answer, hint))
@@ -100,8 +100,8 @@ impl<'a> From<Cloze<'a>> for ClozeString {
 	}
 }
 
-impl<'a> From<Identified<FlashNote<'a>>> for Note {
-	fn from(note: Identified<FlashNote<'a>>) -> Self {
+impl<'model> From<Identified<FlashNote<'model>>> for Note {
+	fn from(note: Identified<FlashNote<'model>>) -> Self {
 		let inner_note = note.inner;
 		Note {
 			guid:            note.id.to_string(),

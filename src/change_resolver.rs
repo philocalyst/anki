@@ -14,9 +14,9 @@ use crate::{change_router::Transforms::{self, Additions, Deletions, Modification
 /// This function takes a set of transformations, in order from earliest to
 /// latest, and applies them to the original notes within a deck. It is tracking
 /// the state of the list over time, and returning its stable representation.
-pub fn resolve_changes<'a, 'b>(
-	transformations: &Transforms<'a, 'b>,
-	substrate: &mut Vec<Identified<Note<'b>>>,
+pub fn resolve_changes<'borrow, 'content>(
+	transformations: &Transforms<'borrow, 'content>,
+	substrate: &mut Vec<Identified<Note<'content>>>,
 	note_id_generator: &impl NoteIdGenerator,
 ) {
 	match transformations {

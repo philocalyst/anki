@@ -7,11 +7,11 @@ use crate::note::TextElement;
 // }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlashItem<'a> {
+pub enum FlashItem<'src> {
 	NoteModel(String),
 	Alias { from: String, to: String },
 	Tags(Vec<String>),
-	Field { name: String, content: Vec<TextElement<'a>> },
+	Field { name: String, content: Vec<TextElement<'src>> },
 	Comment(String),
 	BlankLine,
 }

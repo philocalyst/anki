@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 use crate::{change_resolver::resolve_changes, change_router::determine_changes, crowd_anki::DeckConfig, deck::{Deck, blob_entry::BEntry}, deck_locator::scan_deck_contents, error::DeckError, model_catalog::{FilesystemModelCatalog, ModelCatalog}, note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable}, note_id_generator::{GitNoteIdGenerator, NoteIdGenerator}, parser::{ImportExpander, Token, flash}, uuid_generator::{self, HostUuid, generate_core_identifier}};
 
-pub fn get_file_history<'a>(
-	vcs: &'a Repository,
+pub fn get_file_history<'repo>(
+	vcs: &'repo Repository,
 	target: &str,
-) -> Result<Vec<(gix::object::tree::Entry<'a>, gix::Commit<'a>)>, DeckError> {
+) -> Result<Vec<(gix::object::tree::Entry<'repo>, gix::Commit<'repo>)>, DeckError> {
 	info!("Finding history of file: {}", target);
 
 	let mut history = Vec::new();
@@ -83,7 +83,7 @@ pub fn get_file_history<'a>(
 	}
 }
 
-impl<'b> super::Deck<'b> {
+impl<'model> super::Deck<'model> {
 	#[instrument(skip(deck_path))]
 	pub fn from<P: AsRef<Path>>(deck_path: P) -> Result<Self, DeckError> {
 		let model_catalog = FilesystemModelCatalog;
@@ -170,7 +170,7 @@ impl<'b> super::Deck<'b> {
 			// Transmute to the target lifetime 'b
 			// This is safe because we're about to move models and content into the Deck,
 			// and the cards will be moved along with them
-			mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'b>>>>(temp_cards)
+			mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'model>>>>(temp_cards)
 		};
 
 		// Final check to ensure all cards have the required amount of fields
@@ -216,10 +216,10 @@ impl<'b> super::Deck<'b> {
 	}
 
 	#[cfg(test)]
-	pub(crate) fn parse_cards<'a>(
-		models: &'a [NoteModel],
-		content: &'a str,
-	) -> Result<Vec<Note<'a>>, DeckError> {
+	pub(crate) fn parse_cards<'model>(
+		models: &'model [NoteModel],
+		content: &'model str,
+	) -> Result<Vec<Note<'model>>, DeckError> {
 		parse_cards(models, content)
 	}
 }
@@ -281,7 +281,7 @@ fn derive_core_id(vcs: &Repository) -> Result<Uuid, DeckError> {
 	Err(DeckError::EmptyHistory)
 }
 
-fn parse_cards<'a>(models: &'a [NoteModel], content: &'a str) -> Result<Vec<Note<'a>>, DeckError> {
+fn parse_cards<'model>(models: &'model [NoteModel], content: &'model str) -> Result<Vec<Note<'model>>, DeckError> {
 	debug!("Parsing card content");
 
 	// Create the lexer
@@ -316,14 +316,14 @@ fn parse_cards<'a>(models: &'a [NoteModel], content: &'a str) -> Result<Vec<Note
 }
 
 // Initialize the first state with UUIDs
-fn initialize_cards<'a>(
-	models: &'a [NoteModel],
+fn initialize_cards<'model>(
+	models: &'model [NoteModel],
 	backing_vcs: &Repository,
 	entry: &Entry,
 	commit: &Commit,
 	note_id_generator: &impl NoteIdGenerator,
-	cards: Vec<Note<'a>>,
-) -> Result<Vec<Identified<Note<'a>>>, DeckError> {
+	cards: Vec<Note<'model>>,
+) -> Result<Vec<Identified<Note<'model>>>, DeckError> {
 	// Generate initial set of UUIDs
 	let uuids = note_id_generator.generate_note_ids_for_revision(
 		models,
@@ -335,10 +335,10 @@ fn initialize_cards<'a>(
 }
 
 /// Interpret the passing of a cycle
-fn process_cycle<'a>(
+fn process_cycle<'model>(
 	last_cards: &[Note],
-	current_cards: &[Note<'a>],
-	static_cards: &mut Vec<Identified<Note<'a>>>,
+	current_cards: &[Note<'model>],
+	static_cards: &mut Vec<Identified<Note<'model>>>,
 	note_id_generator: &impl NoteIdGenerator,
 ) -> Result<(), DeckError> {
 	// It might be that a change was made but nothing of note happened, like a misc.
@@ -364,13 +364,13 @@ fn get_content(backing_vcs: &Repository, entry: &Entry) -> Result<String, DeckEr
 }
 
 // Main processing logic
-fn process_card_history<'a>(
-	models: &'a [NoteModel],
-	content: &'a [String],
+fn process_card_history<'model>(
+	models: &'model [NoteModel],
+	content: &'model [String],
 	backing_vcs: &Repository,
 	history: &[(Entry, Commit)],
 	note_id_generator: &impl NoteIdGenerator,
-) -> Result<Vec<Identified<Note<'a>>>, DeckError> {
+) -> Result<Vec<Identified<Note<'model>>>, DeckError> {
 	let mut history_iter = history.iter();
 
 	// Handle first entry separately
