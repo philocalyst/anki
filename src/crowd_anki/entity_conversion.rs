@@ -89,12 +89,13 @@ impl<'a> From<&'a NoteModel> for crate::crowd_anki::NoteModel {
 /// This type represents Cloze's as anki expects them in note fields
 pub struct ClozeString(String);
 
-impl From<Cloze> for ClozeString {
-	fn from(cloze: Cloze) -> Self {
+impl<'a> From<Cloze<'a>> for ClozeString {
+	fn from(cloze: Cloze<'a>) -> Self {
+		let answer = crate::note::djot_to_string(&cloze.answer);
 		if let Some(hint) = cloze.hint {
-			ClozeString(format!("{{{{c{}::{}::{}}}}}", cloze.id, cloze.answer, hint))
+			ClozeString(format!("{{{{c{}::{}::{}}}}}", cloze.id, answer, hint))
 		} else {
-			ClozeString(format!("{{{{c{}::{}}}}}", cloze.id, cloze.answer))
+			ClozeString(format!("{{{{c{}::{}}}}}", cloze.id, answer))
 		}
 	}
 }

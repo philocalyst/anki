@@ -143,6 +143,17 @@ impl Default for NoteModel<Partial> {
 
 type Djot<'content> = Vec<jotdown::Event<'content>>;
 
+/// Extract plain text from a Djot event stream
+pub fn djot_to_string(events: &[jotdown::Event<'_>]) -> String {
+	let mut s = String::new();
+	for event in events {
+		if let jotdown::Event::Str(text) = event {
+			s.push_str(text);
+		}
+	}
+	s
+}
+
 #[derive(Debug, Eq, Clone, PartialEq)]
 pub struct Cloze<'content> {
 	pub id:     u32,

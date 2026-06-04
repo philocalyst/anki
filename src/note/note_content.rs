@@ -1,6 +1,6 @@
 use tracing::instrument;
 
-use crate::note::{Note, TextElement};
+use crate::note::{Note, TextElement, djot_to_string};
 
 impl<'a> Note<'a> {
 	/// Generate a deterministic string representation of the note's content
@@ -16,10 +16,10 @@ impl<'a> Note<'a> {
 				.content
 				.iter()
 				.map(|part| match part {
-					TextElement::Text(text) => text.as_str(),
-					TextElement::Cloze(cloze) => cloze.answer.as_str(),
+					TextElement::Text(text) => text.clone(),
+					TextElement::Cloze(cloze) => djot_to_string(&cloze.answer),
 				})
-				.collect::<Vec<&str>>()
+				.collect::<Vec<String>>()
 				.join("\0");
 
 			content.push_str(&field_content);

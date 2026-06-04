@@ -335,10 +335,10 @@ fn initialize_cards<'a>(
 }
 
 /// Interpret the passing of a cycle
-fn process_cycle(
+fn process_cycle<'a>(
 	last_cards: &[Note],
-	current_cards: &[Note],
-	static_cards: &mut Vec<Identified<Note>>,
+	current_cards: &[Note<'a>],
+	static_cards: &mut Vec<Identified<Note<'a>>>,
 	note_id_generator: &impl NoteIdGenerator,
 ) -> Result<(), DeckError> {
 	// It might be that a change was made but nothing of note happened, like a misc.
