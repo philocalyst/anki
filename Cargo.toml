@@ -15,6 +15,7 @@ fs-err = "3.1.1"
 gix = "0.74.1"
 jotdown = { version = "0.10.0", features = ["deterministic"] }
 logos = "0.16.0"
+mun = "0.4.0"
 opentelemetry = "0.31.0"
 opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = "0.31.0"
