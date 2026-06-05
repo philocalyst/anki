@@ -43,9 +43,17 @@ fn init() -> Result<()> {
 	Ok(())
 }
 
+use rhai::{Engine, EvalAltResult};
+
 fn main() -> Result<()> {
 	init();
 	let args = Args::parse();
+
+	// We're using Rhai because it provides the most granular control over security
+	// in a non-wasm interface, and because scripting should be a very small part
+	// of the project (So idm dynamic typing)
+	let mut engine = Engine::new();
+	engine.eval_file("test.rhai".into())?;
 
 	info!("Starting Anki deck parser");
 
@@ -74,11 +82,11 @@ fn main() -> Result<()> {
 }
 
 /// Create a template repository
-fn create_template(where: PathBuf, ) -> {
-	let repo =	ThreadSafeRepository::init_opts(where, Kind::WithWorktree, Options::default(), Options::default());
+// fn create_template(where: PathBuf, ) -> {
+// 	let repo =	ThreadSafeRepository::init_opts(where, Kind::WithWorktree, Options::default(), Options::default());
 
-	let flash_entry = where.join("index.flash");
+// 	let flash_entry = where.join("index.flash");
 
-	// Empt for now
-	fs::write(flash_entry, "");
-}
+// 	// Empt for now
+// 	fs::write(flash_entry, "");
+// }
