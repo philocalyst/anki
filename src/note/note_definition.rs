@@ -95,6 +95,8 @@ pub struct NoteModel<Stage: ModelStage = Complete> {
 
 	// The required fields are determined at runtime, this String holds a boolean expression that
 	// affirms this.
+	// NOTE: This CANNOT be reliably round-tripped (from a crowdanki import) because the logical
+	// expression syntax is FAR more advanced than what anki itself supports
 	pub required: Node,
 }
 

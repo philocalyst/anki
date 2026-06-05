@@ -287,10 +287,13 @@ where
 		.then(id)
 		.then_ignore(just(Token::RBrace))
 		.map(|((answer, hint), id)| {
-			let answer_events: Vec<jotdown::Event<'static>> = vec![
-				jotdown::Event::Str(std::borrow::Cow::Owned(answer)),
-			];
-			TextElement::Cloze(Cloze { id: id.and_then(|s| s.parse().ok()).unwrap_or(0), answer: answer_events, hint })
+			let answer_events: Vec<jotdown::Event<'static>> =
+				vec![jotdown::Event::Str(std::borrow::Cow::Owned(answer))];
+			TextElement::Cloze(Cloze {
+				id: id.and_then(|s| s.parse().ok()).unwrap_or(0),
+				answer: answer_events,
+				hint,
+			})
 		});
 
 	// If complete pattern fails, just treat { as literal text
