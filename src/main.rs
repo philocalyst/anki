@@ -53,7 +53,10 @@ fn main() -> Result<()> {
 	// in a non-wasm interface, and because scripting should be a very small part
 	// of the project (So idm dynamic typing)
 	let mut engine = Engine::new();
-	engine.eval_file("test.rhai".into())?;
+	let result = engine.eval_file("test.rhai".into())?;
+
+	// What we're using Rhai for is for A: migrations (which I considered going with a sql thing, but want consistency), and B: supporting dynamic card creating (based on tags, MAYBE content or similar) C: Perhaps a plugin system of some kind...
+	// It's rather limiting though, so I'm expecting to bind to it directly a fair bit of the time
 
 	info!("Starting Anki deck parser");
 
