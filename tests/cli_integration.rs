@@ -68,6 +68,19 @@ fn run_git(arguments: &[&str], working_directory: &Path) -> Result<(), Box<dyn E
 	)
 }
 
+/// Create a minimal deck repo at `root/name` whose `index.flash` content is
+/// the given `content`. Runs `git init`, `git add`, `git commit`.
+fn make_deck_repo(root: &Path, name: &str, content: &str) -> Result<PathBuf, Box<dyn Error>> {
+	let repo_path = root.join(name);
+	fs::create_dir_all(&repo_path)?;
+	fs::write(repo_path.join("index.flash"), content)?;
+	run_git(&["init"], &repo_path)?;
+	run_git(&["add", "index.flash"], &repo_path)?;
+	run_git(&["commit", "-m", "init"], &repo_path)?;
+	Ok(repo_path)
+}
+
+/// Copy a fixture deck repo, optionally prepending a prelude.
 fn borrow_deck_repo(
 	root: &Path,
 	name: &str,
