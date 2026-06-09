@@ -1,7 +1,3 @@
-use tracing::{info, instrument, warn};
-
-use crate::note::Note;
-
 pub mod change_resolver;
 pub mod change_router;
 pub mod config;
