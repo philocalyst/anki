@@ -30,12 +30,14 @@ impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
 		// We can't mix these types because indices would become inconsistent
 		if self.before.len() != self.after.len() {
 			return self.how_it_resized();
-		}
-
+		} else {
 		// Case 2: Same length - could be reordering or modifications
 		if let Some(reorderings) = self.how_it_moved() {
 			return Ok(Some(Transforms::Reorders(reorderings)));
 		}
+			
+		}
+
 
 		Ok(Some(Transforms::Modifications(self.how_it_changed()?)))
 	}
@@ -108,32 +110,36 @@ impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
 		Ok(deletions)
 	}
 
-	fn how_it_moved(&self) -> Option<HashSet<(usize, usize)>> {
-		// Check if it's a reorder by comparing sorted versions
-		let mut sorted_1 = self.before.to_vec();
-		let mut sorted_2 = self.after.to_vec();
-		sorted_1.sort();
-		sorted_2.sort();
 
-		if sorted_1 == sorted_2 {
-			// Same cards, different order - this is a reordering
-			// Find all positions where cards differ
-			let mut reorderings = HashSet::new();
-			for ((idx1, card1), (_, card2)) in
-				self.before.iter().enumerate().zip(self.after.iter().enumerate())
-			{
-				if *card1 != *card2
-					&& let Some(idx2) = self.after.iter().position(|cur| cur == card1)
-				{
-					// Track where each card moved from -> to
-					let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
-					reorderings.insert(swap);
-				}
-			}
-			Some(reorderings)
-		} else {
-			None
-		}
+	fn how_it_moved(&self) -> Option<HashSet<(usize, usize)>> {
+	    let mut sorted_before = self.before.to_vec();
+	    let mut sorted_after = self.after.to_vec();
+    
+	    // We don't care about the order of equal elements so yay speed
+	    sorted_before.sort_unstable();
+	    sorted_after.sort_unstable();
+
+		// Same cards, different order - this is a reordering
+		// Find all positions where cards differ
+	    (sorted_before == sorted_after).then(|| {
+	        self.before
+	        	// Otherwise double-ref
+	            .iter()
+	            .zip(self.after.iter())
+	            .enumerate()
+	            // Only worrying about cards which have moved
+	            .filter(|(_, (before_card, after_card))| before_card != after_card)
+	            .filter_map(|(current_index, (before_card, _))| {
+	                // Find the index of this specific card in the 'after' state
+	                let new_index = self.after
+	                    .iter()
+	                    .position(|current_card| current_card == before_card)?;
+                    
+	                // Order the tuple consistently (smaller index first)
+	                Some((current_index.min(new_index), current_index.max(new_index)))
+	            })
+	            .collect()
+	    })
 	}
 
 	fn how_it_changed(&self) -> Result<Vec<(usize, &'borrow Note<'content>)>, DeckError> {
