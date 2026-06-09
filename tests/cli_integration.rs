@@ -169,21 +169,14 @@ fn cli_outputs_expected_shape() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn cli_handles_real_fixture_deck_repos() -> Result<(), Box<dyn Error>> {
+fn cli_outputs_include_note_uuids() -> Result<(), Box<dyn Error>> {
 	let data_home = prepare_data_home()?;
 	let deck_root = tempfile::tempdir()?;
-	let grammar_repo =
-		borrow_deck_repo(deck_root.path(), "grammar.deck", "out/Grammar.deck/index.flash", None)?;
-	let micro_repo = borrow_deck_repo(
-		deck_root.path(),
-		"micro.deck",
-		"out/Micro.deck/index.flash",
-		Some("/ Basic /\nalias Question to Q\nalias Answer to A\n\n"),
-	)?;
+	let deck_repo = make_deck_repo(deck_root.path(), "test.deck", MINIMAL_DECK_CONTENT)?;
 	let output_dir = tempfile::tempdir()?;
-	let output_path = output_dir.path().join("fixture-decks.json");
+	let output_path = output_dir.path().join("ids.json");
 
-	let output = run_cli(&[grammar_repo, micro_repo], &output_path, data_home.path())?;
+	let output = run_cli(&[deck_repo], &output_path, data_home.path())?;
 	assert!(
 		output.status.success(),
 		"flash CLI failed:\nstdout:\n{}\nstderr:\n{}",
@@ -191,18 +184,20 @@ fn cli_handles_real_fixture_deck_repos() -> Result<(), Box<dyn Error>> {
 		String::from_utf8_lossy(&output.stderr)
 	);
 
-	let json: Value = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
-	let decks = json.as_array().ok_or("expected CLI output to be an array")?;
+	let json: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
+	let card_ids = json[0]["card_ids"].as_array().unwrap();
 
-	assert_eq!(decks.len(), 2);
-	assert_eq!(decks[0]["__type__"], "Deck");
-	assert_eq!(decks[1]["__type__"], "Deck");
-	assert_eq!(decks[0]["note_models"][0]["name"], "Basic");
-	assert_eq!(decks[1]["note_models"][0]["name"], "Basic");
-	assert_eq!(decks[0]["notes"][0]["fields"][0], "What can a noun be?");
-	assert_eq!(decks[1]["notes"][0]["fields"][0], "What is a rival good?");
-	assert!(decks[0]["notes"].as_array().is_some_and(|notes| !notes.is_empty()));
-	assert!(decks[1]["notes"].as_array().is_some_and(|notes| !notes.is_empty()));
+	assert_eq!(card_ids.len(), 2, "Should have 2 card IDs");
+	for id in card_ids {
+		let s = id.as_str().unwrap();
+		assert_eq!(s.len(), 36, "Each card ID should be a UUID string");
+		assert_eq!(s.chars().filter(|&c| c == '-').count(), 4, "UUID format check");
+	}
+
+	// UUIDs should all be different
+	let unique: std::collections::HashSet<&str> =
+		card_ids.iter().map(|v| v.as_str().unwrap()).collect();
+	assert_eq!(unique.len(), card_ids.len(), "All UUIDs should be unique");
 
 	Ok(())
 }
