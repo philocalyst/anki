@@ -40,15 +40,13 @@ fn init() -> Result<()> {
 	Ok(())
 }
 
-use rhai::{Engine, EvalAltResult};
-
 fn main() -> Result<()> {
 	init();
 	let args = Args::parse();
 
 	info!("Starting Anki deck parser");
 
-	let mut entities: Vec<CrowdAnkiEntity> = Vec::with_capacity(args.decks.len());
+	let mut entities = Vec::with_capacity(args.decks.len());
 
 	for deck_path in &args.decks {
 		info!("Parsing deck at: {:?}", deck_path);
