@@ -10,41 +10,51 @@ pub enum Transforms<'borrow, 'content> {
 	Reorders(HashSet<(usize, usize)>),
 }
 
+fn how_it_grew<'borrow, 'content>(
+	before: &[Note],
+	after: &'borrow [Note<'content>],
+) -> (usize, Vec<(usize, &'borrow Note<'content>)>) {
+	// Deck grew - find all additions by walking both decks
+	let mut additions = Vec::new();
+	let mut deck_1_idx = 0;
+	let mut deck_2_idx = 0;
+
+	while deck_2_idx < after.len() {
+		if deck_1_idx < before.len() && before[deck_1_idx] == after[deck_2_idx] {
+			// Cards match, advance both pointers
+			deck_1_idx += 1;
+			deck_2_idx += 1;
+		} else {
+			// Card at deck_2_idx is new - record the addition
+			additions.push((deck_2_idx, &after[deck_2_idx]));
+			deck_2_idx += 1;
+		}
+	}
+
+	return (deck_1_idx, additions);
+}
+
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'borrow, 'content>(
-	deck_1: &[Note],
-	deck_2: &'borrow [Note<'content>],
+	before: &[Note],
+	after: &'borrow [Note<'content>],
 	// Transforms are relevant only to the new deck
 ) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
 	// Early return if decks are identical - no changes needed
-	if deck_1 == deck_2 {
+	if before == after {
 		return Ok(None);
 	}
 
 	// Case 1: Different lengths - either all additions or all deletions
 	// We can't mix these types because indices would become inconsistent
-	if deck_1.len() != deck_2.len() {
-		if deck_2.len() > deck_1.len() {
-			// Deck grew - find all additions by walking both decks
-			let mut additions = Vec::new();
-			let mut deck_1_idx = 0;
-			let mut deck_2_idx = 0;
+	if before.len() != after.len() {
+		if after.len() > before.len() {
+			// TODO: Cleaner refactor... Sort of frustrating to pass it up as a tuple here.
+			let (final_intial_index, additions) = how_it_grew(before, after);
 
-			while deck_2_idx < deck_2.len() {
-				if deck_1_idx < deck_1.len() && deck_1[deck_1_idx] == deck_2[deck_2_idx] {
-					// Cards match, advance both pointers
-					deck_1_idx += 1;
-					deck_2_idx += 1;
-				} else {
-					// Card at deck_2_idx is new - record the addition
-					additions.push((deck_2_idx, &deck_2[deck_2_idx]));
-					deck_2_idx += 1;
-				}
-			}
-
-			if deck_1_idx < deck_1.len() {
+			if final_intial_index < before.len() {
 				return Err(DeckError::MixedChanges);
 			}
 
@@ -55,8 +65,8 @@ pub fn determine_changes<'borrow, 'content>(
 			let mut deck_1_idx = 0;
 			let mut deck_2_idx = 0;
 
-			while deck_1_idx < deck_1.len() {
-				if deck_2_idx < deck_2.len() && deck_1[deck_1_idx] == deck_2[deck_2_idx] {
+			while deck_1_idx < before.len() {
+				if deck_2_idx < after.len() && before[deck_1_idx] == after[deck_2_idx] {
 					// Cards match, advance both pointers
 					deck_1_idx += 1;
 					deck_2_idx += 1;
@@ -67,7 +77,7 @@ pub fn determine_changes<'borrow, 'content>(
 				}
 			}
 
-			if deck_2_idx < deck_2.len() {
+			if deck_2_idx < after.len() {
 				return Err(DeckError::MixedChanges);
 			}
 
@@ -81,8 +91,8 @@ pub fn determine_changes<'borrow, 'content>(
 
 	// Case 2: Same length - could be reordering or modifications
 	// Check if it's a reorder by comparing sorted versions
-	let mut sorted_1 = deck_1.to_vec();
-	let mut sorted_2 = deck_2.to_vec();
+	let mut sorted_1 = before.to_vec();
+	let mut sorted_2 = after.to_vec();
 	sorted_1.sort();
 	sorted_2.sort();
 
@@ -90,9 +100,9 @@ pub fn determine_changes<'borrow, 'content>(
 		// Same cards, different order - this is a reordering
 		// Find all positions where cards differ
 		let mut reorderings = HashSet::new();
-		for ((idx1, card1), (_, card2)) in deck_1.iter().enumerate().zip(deck_2.iter().enumerate()) {
+		for ((idx1, card1), (_, card2)) in before.iter().enumerate().zip(after.iter().enumerate()) {
 			if *card1 != *card2
-				&& let Some(idx2) = deck_2.iter().position(|cur| cur == card1)
+				&& let Some(idx2) = after.iter().position(|cur| cur == card1)
 			{
 				// Track where each card moved from -> to
 				let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
@@ -104,10 +114,10 @@ pub fn determine_changes<'borrow, 'content>(
 		// Different cards at same positions - these are modifications
 		// BUT check if any card moved - if so, it's a mixed change
 		let mut modifications = Vec::new();
-		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
+		for (index, (card1, card2)) in before.iter().zip(after.iter()).enumerate() {
 			if card1 != card2 {
 				// If either card exists elsewhere in the other deck, it's a reorder too
-				if deck_2.iter().any(|c| c == card1) || deck_1.iter().any(|c| c == card2) {
+				if after.iter().any(|c| c == card1) || before.iter().any(|c| c == card2) {
 					return Err(DeckError::MixedChanges);
 				}
 				modifications.push((index, card2));
@@ -151,10 +161,7 @@ mod tests {
 		let old = vec![note("Q1", "A1")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Additions(vec![(1, &new[1])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Additions(vec![(1, &new[1])])));
 	}
 
 	#[test]
@@ -162,10 +169,7 @@ mod tests {
 		let old = vec![note("Q1", "A1")];
 		let new = vec![note("Q0", "A0"), note("Q1", "A1")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Additions(vec![(0, &new[0])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Additions(vec![(0, &new[0])])));
 	}
 
 	#[test]
@@ -173,10 +177,7 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q3", "A3")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Additions(vec![(1, &new[1])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Additions(vec![(1, &new[1])])));
 	}
 
 	#[test]
@@ -235,10 +236,7 @@ mod tests {
 		let a = vec![note("Q1", "A1")];
 		let b = vec![note("Q1", "A1_changed")];
 		let result = determine_changes(&a, &b).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Modifications(vec![(0, &b[0])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Modifications(vec![(0, &b[0])])));
 	}
 
 	#[test]
@@ -246,10 +244,7 @@ mod tests {
 		let a = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let b = vec![note("Q1_x", "A1_x"), note("Q2", "A2_y")];
 		let result = determine_changes(&a, &b).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Modifications(vec![(0, &b[0]), (1, &b[1])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Modifications(vec![(0, &b[0]), (1, &b[1])])));
 	}
 
 	#[test]
@@ -264,10 +259,7 @@ mod tests {
 		let empty: Vec<Note<'static>> = Vec::new();
 		let new = vec![note("Q1", "A1")];
 		let result = determine_changes(&empty, &new).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Additions(vec![(0, &new[0])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Additions(vec![(0, &new[0])])));
 	}
 
 	#[test]
@@ -296,9 +288,6 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3"), note("Q4", "A4")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert_eq!(
-			result,
-			Some(super::Transforms::Additions(vec![(2, &new[2]), (3, &new[3])]))
-		);
+		assert_eq!(result, Some(super::Transforms::Additions(vec![(2, &new[2]), (3, &new[3])])));
 	}
 }
