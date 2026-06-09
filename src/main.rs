@@ -85,13 +85,3 @@ async fn main() -> Result<()> {
 	info!("Sync completed for {} deck(s)", decks.len());
 	Ok(())
 }
-
-/// Create a template repository
-// fn create_template(where: PathBuf, ) -> {
-// 	let repo =	ThreadSafeRepository::init_opts(where, Kind::WithWorktree, Options::default(), Options::default());
-
-// 	let flash_entry = where.join("index.flash");
-
-// 	// Empt for now
-// 	fs::write(flash_entry, "");
-// }
