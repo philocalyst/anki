@@ -12,7 +12,7 @@ pub enum Transforms<'borrow, 'content> {
 
 pub struct ChangeRouter<'borrow, 'content> {
 	before: &'borrow [Note<'content>],
-	after:  &'borrow [Note<'content>],
+	after: &'borrow [Note<'content>],
 }
 
 impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
@@ -49,25 +49,31 @@ impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
 		}
 	}
 
+	fn make_sliding_window_frames() -> (usize, usize) {
+		// Could be refactored into macro but feels cheating
+		(0, 0)
+	}
+
 	fn how_it_grew(&self) -> Result<Vec<(usize, &'borrow Note<'content>)>, DeckError> {
 		// Deck grew - find all additions by walking both decks
 		let mut additions = Vec::new();
-		let mut deck_1_idx = 0;
-		let mut deck_2_idx = 0;
 
-		while deck_2_idx < self.after.len() {
-			if deck_1_idx < self.before.len() && self.before[deck_1_idx] == self.after[deck_2_idx] {
+		let (mut before_marker, mut after_marker) = Self::make_sliding_window_frames();
+
+		while after_marker < self.after.len() {
+			if before_marker < self.before.len() && self.before[before_marker] == self.after[after_marker]
+			{
 				// Cards match, advance both pointers
-				deck_1_idx += 1;
-				deck_2_idx += 1;
+				before_marker += 1;
+				after_marker += 1;
 			} else {
 				// Card at deck_2_idx is new - record the addition
-				additions.push((deck_2_idx, &self.after[deck_2_idx]));
-				deck_2_idx += 1;
+				additions.push((after_marker, &self.after[after_marker]));
+				after_marker += 1;
 			}
 		}
 
-		if deck_1_idx < self.before.len() {
+		if before_marker < self.before.len() {
 			return Err(DeckError::MixedChanges);
 		}
 
@@ -77,22 +83,21 @@ impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
 	fn how_it_shrank(&self) -> Result<Vec<usize>, DeckError> {
 		// Deck shrank - find all deletions by walking both decks
 		let mut deletions = Vec::new();
-		let mut deck_1_idx = 0;
-		let mut deck_2_idx = 0;
+		let (mut before_marker, mut after_marker) = Self::make_sliding_window_frames();
 
-		while deck_1_idx < self.before.len() {
-			if deck_2_idx < self.after.len() && self.before[deck_1_idx] == self.after[deck_2_idx] {
+		while before_marker < self.before.len() {
+			if after_marker < self.after.len() && self.before[before_marker] == self.after[after_marker] {
 				// Cards match, advance both pointers
-				deck_1_idx += 1;
-				deck_2_idx += 1;
+				before_marker += 1;
+				after_marker += 1;
 			} else {
 				// Card at deck_1_idx was deleted - record the deletion
-				deletions.push(deck_1_idx);
-				deck_1_idx += 1;
+				deletions.push(before_marker);
+				before_marker += 1;
 			}
 		}
 
-		if deck_2_idx < self.after.len() {
+		if after_marker < self.after.len() {
 			return Err(DeckError::MixedChanges);
 		}
 
