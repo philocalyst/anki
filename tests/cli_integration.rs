@@ -263,3 +263,31 @@ fn cli_handles_multiple_decks() -> Result<(), Box<dyn Error>> {
 
 	Ok(())
 }
+
+#[test]
+fn cli_fails_on_nonexistent_deck_path() {
+	let data_home = tempfile::tempdir().unwrap();
+	let output_dir = tempfile::tempdir().unwrap();
+	let output_path = output_dir.path().join("out.json");
+	let fake_path = PathBuf::from("/tmp/nonexistent-deck-path-12345");
+
+	let result = run_cli(&[fake_path], &output_path, data_home.path());
+
+	match result {
+		Ok(output) => {
+			assert!(
+				!output.status.success(),
+				"CLI should fail on nonexistent deck path\nstdout:\n{}\nstderr:\n{}",
+				String::from_utf8_lossy(&output.stdout),
+				String::from_utf8_lossy(&output.stderr)
+			);
+		}
+		Err(e) => {
+			let msg = e.to_string();
+			assert!(
+				msg.contains("NotFound") || msg.contains("No such") || msg.contains("error"),
+				"Expected error about missing path, got: {msg}"
+			);
+		}
+	}
+}
