@@ -1,4 +1,9 @@
-use std::{error::Error, fs, path::{Path, PathBuf}, process::{Command, Output}};
+use std::{
+	error::Error,
+	fs,
+	path::{Path, PathBuf},
+	process::{Command, Output, Stdio},
+};
 
 use serde_json::Value;
 use tempfile::TempDir;
