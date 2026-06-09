@@ -291,3 +291,18 @@ fn cli_fails_on_nonexistent_deck_path() {
 		}
 	}
 }
+
+#[test]
+fn cli_fails_on_empty_directory() {
+	let data_home = tempfile::tempdir().unwrap();
+	let deck_root = tempfile::tempdir().unwrap();
+	let output_dir = tempfile::tempdir().unwrap();
+	let output_path = output_dir.path().join("out.json");
+
+	let result = run_cli(&[deck_root.path().to_path_buf()], &output_path, data_home.path());
+
+	match result {
+		Ok(output) => assert!(!output.status.success()),
+		Err(_) => {} // Acceptable
+	}
+}
