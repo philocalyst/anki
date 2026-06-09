@@ -1,9 +1,4 @@
-use std::{
-	borrow::Cow,
-	collections::{HashMap, HashSet},
-	fs,
-	path::{Path, PathBuf},
-};
+use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
@@ -14,17 +9,15 @@ use semver::Version;
 use uuid::Uuid;
 
 #[cfg(test)]
-use crate::note::Field;
-#[cfg(test)]
 use crate::deck::deck_history::parse_cards;
-use crate::{
-	note::{Cloze, Note, NoteField, NoteModel, TextElement},
-};
+#[cfg(test)]
+use crate::note::Field;
+use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited: HashSet<PathBuf>,
+	visited:  HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -343,10 +336,10 @@ where
 
 /// Build a note from parsed components
 struct NoteComponents<'model> {
-	model: &'model NoteModel,
+	model:   &'model NoteModel,
 	aliases: HashMap<String, String>,
-	tags: Vec<String>,
-	fields: Vec<NoteField<'model>>,
+	tags:    Vec<String>,
+	fields:  Vec<NoteField<'model>>,
 }
 
 impl<'model> NoteComponents<'model> {
@@ -540,22 +533,22 @@ for (i, model_field) in fields.iter().enumerate() {
 #[cfg(test)]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name: "Basic".to_string(),
-		id: Uuid::new_v4(),
-		templates: vec![],
+		name:           "Basic".to_string(),
+		id:             Uuid::new_v4(),
+		templates:      vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults: None,
-		css: "".to_string(),
-		fields: vec![
+		defaults:       None,
+		css:            "".to_string(),
+		fields:         vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre: None,
-		latex_post: None,
-		sort_field: None,
-		tags: None,
+		latex_pre:      None,
+		latex_post:     None,
+		sort_field:     None,
+		tags:           None,
 		// Requirement: Front must be present
-		required: evalexpr::build_operator_tree("Front").unwrap(),
+		required:       evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
 
@@ -690,6 +683,7 @@ fn token_display_formats_correctly() {
 #[test]
 fn import_expander_expands_basic_import() {
 	use std::fs;
+
 	use super::ImportExpander;
 	let dir = tempfile::tempdir().unwrap();
 	let main_path = dir.path().join("main.flash");
@@ -718,6 +712,7 @@ fn import_expander_passes_through_regular_lines() {
 #[test]
 fn import_expander_detects_circular_imports() {
 	use std::fs;
+
 	use super::ImportExpander;
 	let dir = tempfile::tempdir().unwrap();
 	let a = dir.path().join("a.flash");

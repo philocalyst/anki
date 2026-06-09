@@ -61,12 +61,10 @@ mod tests {
 	#[test]
 	fn identified_for_note() {
 		use std::borrow::Cow;
+
 		use crate::note::{Note, NoteModel};
-		let note = Note {
-			fields: Vec::new(),
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
-		};
+		let note =
+			Note { fields: Vec::new(), model: Cow::Owned(NoteModel::default()), tags: Vec::new() };
 		let identified = note.identified(Uuid::from_u128(5));
 		assert_eq!(identified.id, Uuid::from_u128(5));
 	}

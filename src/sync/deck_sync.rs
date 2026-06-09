@@ -4,10 +4,7 @@ use eyre::{Result, bail};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::config::DeckConfig;
-use crate::sync::client::{FlashClient, unique_name};
-use crate::sync::connection::CollectionSnapshot;
-use crate::sync::identity::FLASH_DECK_UUID_KEY;
+use crate::{config::DeckConfig, sync::{client::{FlashClient, unique_name}, connection::CollectionSnapshot, identity::FLASH_DECK_UUID_KEY}};
 
 pub struct DeckSyncData {
 	pub uuid:   Uuid,
@@ -33,9 +30,11 @@ pub async fn sync_deck(
 		// Ensure the deck exists (user may have deleted it)
 		if !snapshot.decks.contains_key(&anki_name) {
 			warn!("Deck '{}' not in snapshot, recreating", anki_name);
-			client.decks().create(&anki_name).await.map_err(|e| {
-				eyre::eyre!("Failed to create deck '{}': {}", anki_name, e)
-			})?;
+			client
+				.decks()
+				.create(&anki_name)
+				.await
+				.map_err(|e| eyre::eyre!("Failed to create deck '{}': {}", anki_name, e))?;
 		}
 
 		Ok(anki_name)
@@ -45,16 +44,15 @@ pub async fn sync_deck(
 		let target_name = unique_name(&deck.name, &existing);
 
 		if target_name != deck.name {
-			warn!(
-				"Deck name '{}' already taken, using '{}'",
-				deck.name, target_name
-			);
+			warn!("Deck name '{}' already taken, using '{}'", deck.name, target_name);
 		}
 
 		info!("Creating new deck '{}'", target_name);
-		client.decks().create(&target_name).await.map_err(|e| {
-			eyre::eyre!("Failed to create deck '{}': {}", target_name, e)
-		})?;
+		client
+			.decks()
+			.create(&target_name)
+			.await
+			.map_err(|e| eyre::eyre!("Failed to create deck '{}': {}", target_name, e))?;
 
 		// Store UUID in deck config
 		store_deck_uuid(client, &target_name, &deck.uuid).await?;
@@ -68,9 +66,8 @@ async fn find_deck_by_config_uuid(
 	client: &FlashClient,
 	deck_uuid: &Uuid,
 ) -> Result<Option<String>> {
-	let deck_names = client.decks().names().await.map_err(|e| {
-		eyre::eyre!("Failed to get deck names: {}", e)
-	})?;
+	let deck_names =
+		client.decks().names().await.map_err(|e| eyre::eyre!("Failed to get deck names: {}", e))?;
 
 	let uuid_str = deck_uuid.to_string();
 
@@ -88,11 +85,7 @@ async fn find_deck_by_config_uuid(
 }
 
 /// Store the flash UUID in a deck's config so we can find it later.
-async fn store_deck_uuid(
-	client: &FlashClient,
-	deck_name: &str,
-	deck_uuid: &Uuid,
-) -> Result<()> {
+async fn store_deck_uuid(client: &FlashClient, deck_name: &str, deck_uuid: &Uuid) -> Result<()> {
 	let mut config = match client.get_deck_config(deck_name).await? {
 		Some(serde_json::Value::Object(map)) => map,
 		_ => {

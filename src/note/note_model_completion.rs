@@ -122,10 +122,7 @@ mod tests {
 		fs::write(model_path.join("style.css"), "body { color: red; }").unwrap();
 		fs::write(model_path.join("Front+front.hbs"), "{{Front}}").unwrap();
 
-		let partial = NoteModel {
-			name: Some("Test".into()),
-			..NoteModel::default()
-		};
+		let partial = NoteModel { name: Some("Test".into()), ..NoteModel::default() };
 		let complete = partial.complete(&model_path).unwrap();
 		assert_eq!(complete.name, "Test");
 		assert_eq!(complete.css, "body { color: red; }");
@@ -246,10 +243,7 @@ mod tests {
 		let partial_id;
 		let partial_schema;
 		let complete = {
-			let partial = NoteModel {
-				name: Some("CustomName".into()),
-				..NoteModel::default()
-			};
+			let partial = NoteModel { name: Some("CustomName".into()), ..NoteModel::default() };
 			partial_id = partial.id;
 			partial_schema = partial.schema_version.clone();
 			partial.complete(&model_path).unwrap()

@@ -1,45 +1,42 @@
-use crate::deck::Deck;
-use crate::sync::SyncEngine;
+use std::path::{Path, PathBuf};
+
 use eyre::Result;
 use serde::Serialize;
-use std::path::{Path, PathBuf};
 use uuid::Uuid;
+
+use crate::{deck::Deck, sync::SyncEngine};
 
 pub trait ExportBackend {
 	async fn export(&mut self, deck_path: &Path, deck: &Deck<'_>) -> Result<()>;
-	async fn finalize(&mut self) -> Result<()> {
-		Ok(())
-	}
+	async fn finalize(&mut self) -> Result<()> { Ok(()) }
 }
 
 pub struct JsonBackend {
 	output_path: PathBuf,
-	decks: Vec<JsonDeckData>,
+	decks:       Vec<JsonDeckData>,
 }
 
 #[derive(Serialize)]
 struct JsonDeckData {
-	name: String,
-	flash_uuid: String,
-	note_count: usize,
+	name:        String,
+	flash_uuid:  String,
+	note_count:  usize,
 	model_count: usize,
-	card_ids: Vec<Uuid>,
+	card_ids:    Vec<Uuid>,
 }
 
 impl JsonBackend {
-	pub fn new(output_path: PathBuf) -> Self {
-		Self { output_path, decks: Vec::new() }
-	}
+	pub fn new(output_path: PathBuf) -> Self { Self { output_path, decks: Vec::new() } }
 }
 
 impl ExportBackend for JsonBackend {
 	async fn export(&mut self, _deck_path: &Path, deck: &Deck<'_>) -> Result<()> {
 		let data = JsonDeckData {
-			name: deck.configuration.name.clone(),
-			flash_uuid: deck.configuration.flash_uuid.clone(),
-			note_count: deck.cards.len(),
+			name:        deck.configuration.name.clone(),
+			flash_uuid:  deck.configuration.flash_uuid.clone(),
+			note_count:  deck.cards.len(),
 			model_count: deck.models.len(),
-			card_ids: deck.cards.iter().map(|c| c.id).collect(),
+			card_ids:    deck.cards.iter().map(|c| c.id).collect(),
 		};
 		self.decks.push(data);
 		Ok(())

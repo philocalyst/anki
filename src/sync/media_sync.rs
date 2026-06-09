@@ -35,6 +35,7 @@ pub async fn sync_media(client: &FlashClient, deck_path: &Path) -> Result<()> {
 }
 
 fn base64_encode_file(path: &Path) -> Result<String> {
-	let file_data = fs::read(path).map_err(|e| eyre::eyre!("Failed to read file {:?}: {}", path, e))?;
+	let file_data =
+		fs::read(path).map_err(|e| eyre::eyre!("Failed to read file {:?}: {}", path, e))?;
 	Ok(BASE64_STANDARD.encode(file_data))
 }

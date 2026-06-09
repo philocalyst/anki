@@ -107,9 +107,8 @@ pub fn determine_changes<'borrow, 'content>(
 mod tests {
 	use std::borrow::Cow;
 
-	use crate::note::{Note, NoteField, NoteModel, TextElement};
-
 	use super::determine_changes;
+	use crate::note::{Note, NoteField, NoteModel, TextElement};
 
 	fn note(front: &str, back: &str) -> Note<'static> {
 		Note {
@@ -117,8 +116,8 @@ mod tests {
 				NoteField { name: "Front".into(), content: vec![TextElement::Text(front.into())] },
 				NoteField { name: "Back".into(), content: vec![TextElement::Text(back.into())] },
 			],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
+			model:  Cow::Owned(NoteModel::default()),
+			tags:   Vec::new(),
 		}
 	}
 

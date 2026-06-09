@@ -72,18 +72,18 @@ pub struct LapseConfig {
 impl DeckConfig {
 	pub fn blank(uuid: Uuid) -> Self {
 		Self {
-			flash_uuid: uuid.to_string(),
-			name: "regex".to_string(),
-			max_taken: Some(100),
-			autoplay: Some(true),
-			replayq: Some(true),
-			timer: Some(0),
+			flash_uuid:      uuid.to_string(),
+			name:            "regex".to_string(),
+			max_taken:       Some(100),
+			autoplay:        Some(true),
+			replayq:         Some(true),
+			timer:           Some(0),
 			another_retreat: Some(false),
-			kind: ConfigType::DeckConfig,
-			is_dynamic: false,
-			new: NewConfig::default(),
-			rev: RevConfig::default(),
-			lapse: LapseConfig::default(),
+			kind:            ConfigType::DeckConfig,
+			is_dynamic:      false,
+			new:             NewConfig::default(),
+			rev:             RevConfig::default(),
+			lapse:           LapseConfig::default(),
 		}
 	}
 }

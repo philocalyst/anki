@@ -4,11 +4,11 @@ use eyre::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::sync::client::FlashClient;
-use crate::sync::identity::{parse_note_uuid_from_tag, flash_tag_wildcard};
+use crate::sync::{client::FlashClient, identity::{flash_tag_wildcard, parse_note_uuid_from_tag}};
 
 /// Delete notes from Anki that have flash tags but whose UUIDs are not in the
-/// current set. This handles the case where a note was removed from a .flash file.
+/// current set. This handles the case where a note was removed from a .flash
+/// file.
 pub async fn reconcile_deletions(
 	client: &FlashClient,
 	deck_name: &str,
@@ -41,10 +41,7 @@ pub async fn reconcile_deletions(
 
 		match found_uuid {
 			Some(uuid) if !current_uuids.contains(&uuid) => {
-				warn!(
-					"Note '{}' (uuid: {}) no longer in flash deck — will delete",
-					info.note_id, uuid
-				);
+				warn!("Note '{}' (uuid: {}) no longer in flash deck — will delete", info.note_id, uuid);
 				to_delete.push(info.note_id);
 			}
 			_ => {} // Keep: either UUID matches or we can't parse it

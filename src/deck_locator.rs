@@ -54,7 +54,8 @@ mod tests {
 
 		let result = scan_deck_contents(dir.path()).unwrap();
 		assert_eq!(result.len(), 2);
-		let names: Vec<String> = result.iter().map(|p| p.file_name().unwrap().to_string_lossy().into()).collect();
+		let names: Vec<String> =
+			result.iter().map(|p| p.file_name().unwrap().to_string_lossy().into()).collect();
 		assert!(names.contains(&"a.flash".into()));
 		assert!(names.contains(&"b.flash".into()));
 	}

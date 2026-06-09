@@ -4,8 +4,7 @@ use ankit::CreateModelParams;
 use eyre::Result;
 use tracing::{info, warn};
 
-use crate::sync::client::{FlashClient, unique_name};
-use crate::sync::identity::make_model_uuid_comment;
+use crate::sync::{client::{FlashClient, unique_name}, identity::make_model_uuid_comment};
 
 pub struct ModelSyncData {
 	pub uuid:       uuid::Uuid,
@@ -39,17 +38,18 @@ pub async fn sync_model(client: &FlashClient, model: &ModelSyncData) -> Result<S
 }
 
 async fn find_model_by_uuid(client: &FlashClient, uuid: &uuid::Uuid) -> Result<Option<String>> {
-	let model_names = client.models().names().await.map_err(|e| {
-		eyre::eyre!("Failed to get model names: {}", e)
-	})?;
+	let model_names =
+		client.models().names().await.map_err(|e| eyre::eyre!("Failed to get model names: {}", e))?;
 
 	let uuid_str = uuid.to_string();
 	let comment_marker = format!("/* flash-uuid: {}", uuid_str);
 
 	for name in &model_names {
-		let styling = client.models().styling(name).await.map_err(|e| {
-			eyre::eyre!("Failed to get styling for model '{}': {}", name, e)
-		})?;
+		let styling = client
+			.models()
+			.styling(name)
+			.await
+			.map_err(|e| eyre::eyre!("Failed to get styling for model '{}': {}", name, e))?;
 
 		if styling.css.contains(&comment_marker) || styling.css.contains(&uuid_str) {
 			return Ok(Some(name.clone()));
@@ -60,9 +60,13 @@ async fn find_model_by_uuid(client: &FlashClient, uuid: &uuid::Uuid) -> Result<O
 }
 
 async fn create_model(client: &FlashClient, model: &ModelSyncData) -> Result<String> {
-	let existing_names: HashSet<String> = client.models().names().await.map_err(|e| {
-		eyre::eyre!("Failed to get model names: {}", e)
-	})?.into_iter().collect();
+	let existing_names: HashSet<String> = client
+		.models()
+		.names()
+		.await
+		.map_err(|e| eyre::eyre!("Failed to get model names: {}", e))?
+		.into_iter()
+		.collect();
 
 	let target_name = unique_name(&model.name, &existing_names);
 
@@ -75,9 +79,11 @@ async fn create_model(client: &FlashClient, model: &ModelSyncData) -> Result<Str
 		params = params.template(&tmpl.name, &tmpl.front, &tmpl.back);
 	}
 
-	client.models().create(params).await.map_err(|e| {
-		eyre::eyre!("Failed to create model '{}': {}", target_name, e)
-	})?;
+	client
+		.models()
+		.create(params)
+		.await
+		.map_err(|e| eyre::eyre!("Failed to create model '{}': {}", target_name, e))?;
 
 	client
 		.models()
@@ -94,9 +100,11 @@ async fn update_model_if_changed(
 	model: &ModelSyncData,
 	existing_name: &str,
 ) -> Result<()> {
-	let styling = client.models().styling(existing_name).await.map_err(|e| {
-		eyre::eyre!("Failed to get styling for model '{}': {}", existing_name, e)
-	})?;
+	let styling = client
+		.models()
+		.styling(existing_name)
+		.await
+		.map_err(|e| eyre::eyre!("Failed to get styling for model '{}': {}", existing_name, e))?;
 
 	let desired_css = model_css_with_uuid(model);
 	if styling.css != desired_css {
@@ -108,9 +116,11 @@ async fn update_model_if_changed(
 			.map_err(|e| eyre::eyre!("Failed to update styling: {}", e))?;
 	}
 
-	let existing_templates = client.models().templates(existing_name).await.map_err(|e| {
-		eyre::eyre!("Failed to get templates for model '{}': {}", existing_name, e)
-	})?;
+	let existing_templates = client
+		.models()
+		.templates(existing_name)
+		.await
+		.map_err(|e| eyre::eyre!("Failed to get templates for model '{}': {}", existing_name, e))?;
 
 	for tmpl in &model.templates {
 		let needs_update = match existing_templates.get(&tmpl.name) {
@@ -130,9 +140,11 @@ async fn update_model_if_changed(
 		}
 	}
 
-	let existing_fields = client.models().field_names(existing_name).await.map_err(|e| {
-		eyre::eyre!("Failed to get field names: {}", e)
-	})?;
+	let existing_fields = client
+		.models()
+		.field_names(existing_name)
+		.await
+		.map_err(|e| eyre::eyre!("Failed to get field names: {}", e))?;
 
 	for field_name in &model.fields {
 		if !existing_fields.contains(field_name) {
@@ -166,7 +178,7 @@ fn model_css_with_uuid(model: &ModelSyncData) -> String {
 mod tests {
 	use uuid::Uuid;
 
-	use super::{model_css_with_uuid, ModelSyncData, TemplateSyncData};
+	use super::{ModelSyncData, TemplateSyncData, model_css_with_uuid};
 
 	fn sample_model() -> ModelSyncData {
 		ModelSyncData {
@@ -195,10 +207,7 @@ mod tests {
 
 	#[test]
 	fn model_css_with_empty_original_css() {
-		let model = ModelSyncData {
-			css: String::new(),
-			..sample_model()
-		};
+		let model = ModelSyncData { css: String::new(), ..sample_model() };
 		let css = model_css_with_uuid(&model);
 		assert!(css.contains(&model.uuid.to_string()));
 		assert!(css.ends_with('\n'));

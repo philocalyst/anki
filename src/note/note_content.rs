@@ -41,11 +41,8 @@ mod tests {
 
 	#[test]
 	fn to_content_string_empty_fields() {
-		let note = Note {
-			fields: Vec::new(),
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
-		};
+		let note =
+			Note { fields: Vec::new(), model: Cow::Owned(NoteModel::default()), tags: Vec::new() };
 		assert_eq!(note.to_content_string(), "");
 	}
 
@@ -53,8 +50,8 @@ mod tests {
 	fn to_content_string_single_field() {
 		let note = Note {
 			fields: vec![text_field("Front", "Hello World")],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
+			model:  Cow::Owned(NoteModel::default()),
+			tags:   Vec::new(),
 		};
 		assert_eq!(note.to_content_string(), "FrontHello World");
 	}
@@ -63,8 +60,8 @@ mod tests {
 	fn to_content_string_multiple_fields() {
 		let note = Note {
 			fields: vec![text_field("Front", "Hello"), text_field("Back", "World")],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
+			model:  Cow::Owned(NoteModel::default()),
+			tags:   Vec::new(),
 		};
 		assert_eq!(note.to_content_string(), "FrontHelloBackWorld");
 	}
@@ -73,8 +70,8 @@ mod tests {
 	fn to_content_string_with_empty_field_content() {
 		let note = Note {
 			fields: vec![text_field("Front", "")],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
+			model:  Cow::Owned(NoteModel::default()),
+			tags:   Vec::new(),
 		};
 		assert_eq!(note.to_content_string(), "Front");
 	}
@@ -82,35 +79,29 @@ mod tests {
 	#[test]
 	fn to_content_string_separates_field_elements_with_null() {
 		let field = NoteField {
-			name: "F".into(),
+			name:    "F".into(),
 			content: vec![TextElement::Text("A".into()), TextElement::Text("B".into())],
 		};
-		let note = Note {
-			fields: vec![field],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
-		};
+		let note =
+			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: Vec::new() };
 		assert_eq!(note.to_content_string(), "FA\0B");
 	}
 
 	#[test]
 	fn to_content_string_with_cloze() {
 		let field = NoteField {
-			name: "Text".into(),
+			name:    "Text".into(),
 			content: vec![
 				TextElement::Text("Capital of France is ".into()),
 				TextElement::Cloze(Cloze {
-					id: 1,
+					id:     1,
 					answer: vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("Paris"))],
-					hint: None,
+					hint:   None,
 				}),
 			],
 		};
-		let note = Note {
-			fields: vec![field],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
-		};
+		let note =
+			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: Vec::new() };
 		// Elements within a field are joined with null byte
 		assert_eq!(note.to_content_string(), "TextCapital of France is \0Paris");
 	}

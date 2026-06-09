@@ -66,13 +66,8 @@ mod tests {
 
 	use uuid::Uuid;
 
-	use crate::{
-		change_router::Transforms,
-		note::{Identified, Note, NoteField, NoteModel, TextElement},
-		note_id_generator::GitNoteIdGenerator,
-	};
-
 	use super::resolve_changes;
+	use crate::{change_router::Transforms, note::{Identified, Note, NoteField, NoteModel, TextElement}, note_id_generator::GitNoteIdGenerator};
 
 	fn text_field(name: &str, value: &str) -> NoteField<'static> {
 		NoteField { name: name.into(), content: vec![TextElement::Text(value.into())] }
@@ -81,8 +76,8 @@ mod tests {
 	fn make_note(front: &str, back: &str) -> Note<'static> {
 		Note {
 			fields: vec![text_field("Front", front), text_field("Back", back)],
-			model: Cow::Owned(NoteModel::default()),
-			tags: Vec::new(),
+			model:  Cow::Owned(NoteModel::default()),
+			tags:   Vec::new(),
 		}
 	}
 
@@ -113,7 +108,11 @@ mod tests {
 
 	#[test]
 	fn deletions_removes_at_index() {
-		let mut cards = vec![make_identified(1, "Q1", "A1"), make_identified(2, "Q2", "A2"), make_identified(3, "Q3", "A3")];
+		let mut cards = vec![
+			make_identified(1, "Q1", "A1"),
+			make_identified(2, "Q2", "A2"),
+			make_identified(3, "Q3", "A3"),
+		];
 		let deletions = Transforms::Deletions(vec![1]);
 		resolve_changes(&deletions, &mut cards, &GitNoteIdGenerator);
 		assert_eq!(cards.len(), 2);
@@ -123,7 +122,11 @@ mod tests {
 
 	#[test]
 	fn deletions_multiple_reversed() {
-		let mut cards = vec![make_identified(1, "Q1", "A1"), make_identified(2, "Q2", "A2"), make_identified(3, "Q3", "A3")];
+		let mut cards = vec![
+			make_identified(1, "Q1", "A1"),
+			make_identified(2, "Q2", "A2"),
+			make_identified(3, "Q3", "A3"),
+		];
 		let deletions = Transforms::Deletions(vec![2, 0]);
 		resolve_changes(&deletions, &mut cards, &GitNoteIdGenerator);
 		assert_eq!(cards.len(), 1);

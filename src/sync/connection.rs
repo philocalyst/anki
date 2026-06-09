@@ -5,8 +5,7 @@ use eyre::{Result, bail};
 use serde_json::Value;
 use tracing::info;
 
-use crate::sync::client::FlashClient;
-use crate::sync::identity::FLASH_DECK_UUID_KEY;
+use crate::sync::{client::FlashClient, identity::FLASH_DECK_UUID_KEY};
 
 pub async fn check_connection(client: &FlashClient) -> Result<()> {
 	let version = client.misc().version().await.map_err(|e| {
@@ -37,8 +36,8 @@ pub async fn get_collection_snapshot(client: &FlashClient) -> Result<CollectionS
 	}
 
 	let snapshot = CollectionSnapshot {
-		decks: parse_ids(&results[1]),
-		models: parse_ids(&results[2]),
+		decks:      parse_ids(&results[1]),
+		models:     parse_ids(&results[2]),
 		collection: results[0].clone(),
 	};
 
@@ -46,8 +45,8 @@ pub async fn get_collection_snapshot(client: &FlashClient) -> Result<CollectionS
 }
 
 pub struct CollectionSnapshot {
-	pub decks: HashMap<String, i64>,
-	pub models: HashMap<String, i64>,
+	pub decks:      HashMap<String, i64>,
+	pub models:     HashMap<String, i64>,
 	pub collection: Value,
 }
 

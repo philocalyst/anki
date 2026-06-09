@@ -8,25 +8,15 @@ pub fn make_flash_tag(deck_uuid: &Uuid, note_uuid: &Uuid) -> String {
 
 pub fn parse_note_uuid_from_tag(tag: &str) -> Option<Uuid> {
 	let parts: Vec<&str> = tag.split("::").collect();
-	if parts.len() == 3 && parts[0] == "flash" {
-		Uuid::parse_str(parts[2]).ok()
-	} else {
-		None
-	}
+	if parts.len() == 3 && parts[0] == "flash" { Uuid::parse_str(parts[2]).ok() } else { None }
 }
 
 pub fn parse_deck_uuid_from_tag(tag: &str) -> Option<Uuid> {
 	let parts: Vec<&str> = tag.split("::").collect();
-	if parts.len() >= 2 && parts[0] == "flash" {
-		Uuid::parse_str(parts[1]).ok()
-	} else {
-		None
-	}
+	if parts.len() >= 2 && parts[0] == "flash" { Uuid::parse_str(parts[1]).ok() } else { None }
 }
 
-pub fn make_model_uuid_comment(uuid: &Uuid) -> String {
-	format!("/* flash-uuid: {} */", uuid)
-}
+pub fn make_model_uuid_comment(uuid: &Uuid) -> String { format!("/* flash-uuid: {} */", uuid) }
 
 pub fn parse_model_uuid_from_css(css: &str) -> Option<Uuid> {
 	let prefix = "/* flash-uuid: ";
@@ -37,29 +27,25 @@ pub fn parse_model_uuid_from_css(css: &str) -> Option<Uuid> {
 	})
 }
 
-pub fn flash_tag_prefix(deck_uuid: &Uuid) -> String {
-	format!("tag:flash::{}::", deck_uuid)
-}
+pub fn flash_tag_prefix(deck_uuid: &Uuid) -> String { format!("tag:flash::{}::", deck_uuid) }
 
-pub fn flash_tag_wildcard(deck_uuid: &Uuid) -> String {
-	format!("tag:flash::{}::*", deck_uuid)
-}
+pub fn flash_tag_wildcard(deck_uuid: &Uuid) -> String { format!("tag:flash::{}::*", deck_uuid) }
 
 #[cfg(test)]
 mod tests {
 	use uuid::Uuid;
 
-	use super::{
-		flash_tag_prefix, flash_tag_wildcard, make_flash_tag, make_model_uuid_comment,
-		parse_deck_uuid_from_tag, parse_model_uuid_from_css, parse_note_uuid_from_tag,
-	};
+	use super::{flash_tag_prefix, flash_tag_wildcard, make_flash_tag, make_model_uuid_comment, parse_deck_uuid_from_tag, parse_model_uuid_from_css, parse_note_uuid_from_tag};
 
 	#[test]
 	fn make_flash_tag_correct_format() {
 		let deck = Uuid::from_u128(1);
 		let note = Uuid::from_u128(42);
 		let tag = make_flash_tag(&deck, &note);
-		assert_eq!(tag, "flash::00000000-0000-0000-0000-000000000001::00000000-0000-0000-0000-00000000002a");
+		assert_eq!(
+			tag,
+			"flash::00000000-0000-0000-0000-000000000001::00000000-0000-0000-0000-00000000002a"
+		);
 		assert!(tag.starts_with("flash::"));
 		assert!(tag.len() > 20);
 	}
@@ -117,10 +103,7 @@ mod tests {
 	#[test]
 	fn parse_model_uuid_from_css_with_surrounding_content() {
 		let uuid = Uuid::new_v4();
-		let css = format!(
-			".card {{\n  /* flash-uuid: {} */\n  font-family: sans-serif;\n}}\n",
-			uuid
-		);
+		let css = format!(".card {{\n  /* flash-uuid: {} */\n  font-family: sans-serif;\n}}\n", uuid);
 		let parsed = parse_model_uuid_from_css(&css);
 		assert_eq!(parsed, Some(uuid));
 	}
@@ -141,10 +124,7 @@ mod tests {
 	#[test]
 	fn flash_tag_wildcard_format() {
 		let deck = Uuid::from_u128(99);
-		assert_eq!(
-			flash_tag_wildcard(&deck),
-			"tag:flash::00000000-0000-0000-0000-000000000063::*"
-		);
+		assert_eq!(flash_tag_wildcard(&deck), "tag:flash::00000000-0000-0000-0000-000000000063::*");
 	}
 
 	#[test]

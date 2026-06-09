@@ -2,11 +2,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use eyre::{Context, Result};
-use flash::deck::Deck;
+use flash::{deck::Deck, sync::{ExportBackend, JsonBackend, SyncEngine}};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-
-use flash::sync::{ExportBackend, JsonBackend, SyncEngine};
 
 fn init_tracing() {
 	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
