@@ -14,9 +14,10 @@ use semver::Version;
 use uuid::Uuid;
 
 #[cfg(test)]
-use crate::{deck::Deck, note::Field};
+use crate::note::Field;
+#[cfg(test)]
+use crate::deck::deck_history::parse_cards;
 use crate::{
-	deck::deck_history::parse_cards,
 	note::{Cloze, Note, NoteField, NoteModel, TextElement},
 };
 
@@ -587,4 +588,184 @@ alias Back to b
 	assert_eq!(notes[0].fields[0].name, "Front");
 	assert_eq!(first_field_content, "What is Rust?");
 	assert_eq!(notes[1].fields[0].name, "Front");
+}
+
+#[test]
+fn parse_single_note() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+(Front) Hello
+(Back) World
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse single note");
+	assert_eq!(notes.len(), 1);
+	assert_eq!(notes[0].fields[0].name, "Front");
+	assert_eq!(notes[0].fields[1].name, "Back");
+}
+
+#[test]
+fn parse_with_tags() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+[tag1, tag2]
+(Front) Q1
+(Back) A1
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse with tags");
+	assert_eq!(notes.len(), 1);
+	assert_eq!(notes[0].tags, vec!["tag1", "tag2"]);
+}
+
+#[test]
+fn parse_with_cloze() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+(Front) Capital {Paris|capital>1}
+(Back) France
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse cloze");
+	assert_eq!(notes.len(), 1);
+}
+
+#[test]
+fn parse_two_model_sections() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+(Front) Q1
+(Back) A1
+
+/ Basic /
+(Front) Q2
+(Back) A2
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse two sections");
+	assert_eq!(notes.len(), 2);
+}
+
+#[test]
+fn parse_with_comment() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+// this is a comment
+(Front) Q1
+(Back) A1
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse with comment");
+	assert_eq!(notes.len(), 1);
+}
+
+#[test]
+fn token_display_formats_correctly() {
+	use super::Token;
+	let cases = vec![
+		(Token::Slash, "/"),
+		(Token::RArrow, ">"),
+		(Token::Colon, ":"),
+		(Token::LBracket, "["),
+		(Token::RBracket, "]"),
+		(Token::LParen, "("),
+		(Token::RParen, ")"),
+		(Token::LBrace, "{"),
+		(Token::RBrace, "}"),
+		(Token::Pipe, "|"),
+		(Token::Comma, ","),
+		(Token::Alias, "alias"),
+		(Token::To, "to"),
+		(Token::Newline, "\\n"),
+		(Token::WS("  "), "  "),
+		(Token::Text("hello"), "hello"),
+		(Token::Comment("// note"), "// note"),
+		(Token::Error, "<parse error>"),
+	];
+	for (token, expected) in cases {
+		assert_eq!(format!("{}", token), expected, "Token {:?} displayed as {}", token, expected);
+	}
+}
+
+#[test]
+fn import_expander_expands_basic_import() {
+	use std::fs;
+	use super::ImportExpander;
+	let dir = tempfile::tempdir().unwrap();
+	let main_path = dir.path().join("main.flash");
+	let import_path = dir.path().join("imported.flash");
+	fs::write(&import_path, "(Front) Hello\n(Back) World\n").unwrap();
+	fs::write(&main_path, "import imported.flash\n").unwrap();
+
+	let mut expander = ImportExpander::new(dir.path());
+	let result = expander.expand("import imported.flash\n", &main_path).unwrap();
+	assert!(result.contains("Hello"));
+	assert!(result.contains("World"));
+}
+
+#[test]
+fn import_expander_passes_through_regular_lines() {
+	use super::ImportExpander;
+	let dir = tempfile::tempdir().unwrap();
+	let path = dir.path().join("test.flash");
+	std::fs::write(&path, "(Front) Hello\n(Back) World\n").unwrap();
+
+	let mut expander = ImportExpander::new(dir.path());
+	let result = expander.expand("(Front) Hello\n(Back) World\n", &path).unwrap();
+	assert_eq!(result, "(Front) Hello\n(Back) World\n");
+}
+
+#[test]
+fn import_expander_detects_circular_imports() {
+	use std::fs;
+	use super::ImportExpander;
+	let dir = tempfile::tempdir().unwrap();
+	let a = dir.path().join("a.flash");
+	let b = dir.path().join("b.flash");
+	fs::write(&a, "import b.flash\n").unwrap();
+	fs::write(&b, "import a.flash\n").unwrap();
+
+	let mut expander = ImportExpander::new(dir.path());
+	let result = expander.expand("import b.flash\n", &a);
+	assert!(result.is_err());
+	assert!(result.unwrap_err().contains("Circular import"));
+}
+
+#[test]
+fn parse_multiple_notes_same_section() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+(Front) Q1
+(Back) A1
+
+(Front) Q2
+(Back) A2
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse multiple notes");
+	assert_eq!(notes.len(), 2);
+}
+
+#[test]
+fn parse_note_with_cloze_noid() {
+	let models = vec![mock_model()];
+	let input = r#"
+/ Basic /
+(Front) Capital {Paris}
+(Back) France
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse cloze without id");
+	assert_eq!(notes.len(), 1);
+}
+
+#[test]
+fn parse_unknown_model_returns_empty() {
+	let models: Vec<NoteModel> = vec![];
+	let input = r#"
+/ Unknown /
+(Front) Q1
+(Back) A1
+"#;
+	let result = parse_cards(&models, input);
+	assert!(result.is_err());
 }

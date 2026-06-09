@@ -1,14 +1,16 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use tracing::info;
 use uuid::Uuid;
 
 use crate::config::DeckConfig;
+use crate::deck::Deck;
 use crate::note::Identified;
 use crate::note::Note as FlashNote;
 
+use crate::sync::backend::ExportBackend;
 use crate::sync::client::FlashClient;
 use crate::sync::connection::{self, CollectionSnapshot};
 use crate::sync::deck_sync::{self, DeckSyncData};
@@ -18,8 +20,29 @@ use crate::sync::note_sync::{self, NoteSyncData};
 use crate::sync::reconcile;
 
 pub struct SyncEngine {
-	client:   FlashClient,
+	client: FlashClient,
 	snapshot: CollectionSnapshot,
+}
+
+impl ExportBackend for SyncEngine {
+	async fn export(&mut self, deck_path: &Path, deck: &Deck<'_>) -> Result<()> {
+		let deck_uuid = deck
+			.configuration
+			.flash_uuid
+			.parse()
+			.wrap_err_with(|| format!("Invalid deck UUID: {}", deck.configuration.flash_uuid))?;
+
+		self
+			.sync(
+				deck_path,
+				&deck_uuid,
+				&deck.configuration.name,
+				&deck.models,
+				&deck.cards,
+				&deck.configuration,
+			)
+			.await
+	}
 }
 
 impl SyncEngine {

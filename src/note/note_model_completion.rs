@@ -106,3 +106,155 @@ impl NoteModel<Partial> {
 		})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use std::fs;
+
+	use crate::note::NoteModel;
+
+	#[test]
+	fn complete_without_optional_files() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("Test.model");
+		fs::create_dir(&model_path).unwrap();
+		// Create style.css and an .hbs file so we get valid completion
+		fs::write(model_path.join("style.css"), "body { color: red; }").unwrap();
+		fs::write(model_path.join("Front+front.hbs"), "{{Front}}").unwrap();
+
+		let partial = NoteModel {
+			name: Some("Test".into()),
+			..NoteModel::default()
+		};
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.name, "Test");
+		assert_eq!(complete.css, "body { color: red; }");
+	}
+
+	#[test]
+	fn complete_loads_name_from_directory() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("MyModel.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("Q+front.hbs"), "{{Q}}").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.name, "MyModel");
+	}
+
+	#[test]
+	fn complete_loads_style_css() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), ".card { font-size: 14px; }").unwrap();
+		fs::write(model_path.join("F+front.hbs"), "{{F}}").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.css, ".card { font-size: 14px; }");
+	}
+
+	#[test]
+	fn complete_loads_tex_files() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("F+front.hbs"), "{{F}}").unwrap();
+		fs::write(model_path.join("pre.tex"), "\\prelude").unwrap();
+		fs::write(model_path.join("post.tex"), "\\postlude").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.latex_pre, Some("\\prelude".into()));
+		assert_eq!(complete.latex_post, Some("\\postlude".into()));
+	}
+
+	#[test]
+	fn complete_without_style_css_uses_empty_string() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("F+front.hbs"), "{{F}}").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.css, "");
+	}
+
+	#[test]
+	fn complete_loads_templates() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("Card1+front.hbs"), "{{Front}}").unwrap();
+		fs::write(model_path.join("Card1+back.hbs"), "{{Back}}").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		assert_eq!(complete.templates.len(), 1);
+		assert_eq!(complete.templates[0].name, "Card1");
+		assert_eq!(complete.templates[0].question_format, "{{Front}}");
+		assert_eq!(complete.templates[0].answer_format, "{{Back}}");
+	}
+
+	#[test]
+	fn complete_loads_browser_templates() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("C+front.hbs"), "Q").unwrap();
+		fs::write(model_path.join("C+front.browser.hbs"), "Q_browser").unwrap();
+		fs::write(model_path.join("C+back.hbs"), "A").unwrap();
+		fs::write(model_path.join("C+back.browser.hbs"), "A_browser").unwrap();
+
+		let partial = NoteModel::default();
+		let complete = partial.complete(&model_path).unwrap();
+		let tmpl = &complete.templates[0];
+		assert_eq!(tmpl.question_format, "Q");
+		assert_eq!(tmpl.browser_question_format, "Q_browser");
+		assert_eq!(tmpl.answer_format, "A");
+		assert_eq!(tmpl.browser_answer_format, "A_browser");
+	}
+
+	#[test]
+	fn complete_rejects_invalid_template_filename() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("invalid.hbs"), "{{F}}").unwrap();
+
+		let partial = NoteModel::default();
+		let result = partial.complete(&model_path);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn complete_preserves_partial_fields() {
+		let dir = tempfile::tempdir().unwrap();
+		let model_path = dir.path().join("M.model");
+		fs::create_dir(&model_path).unwrap();
+		fs::write(model_path.join("style.css"), "").unwrap();
+		fs::write(model_path.join("F+front.hbs"), "{{F}}").unwrap();
+
+		let partial_id;
+		let partial_schema;
+		let complete = {
+			let partial = NoteModel {
+				name: Some("CustomName".into()),
+				..NoteModel::default()
+			};
+			partial_id = partial.id;
+			partial_schema = partial.schema_version.clone();
+			partial.complete(&model_path).unwrap()
+		};
+		assert_eq!(complete.id, partial_id);
+		assert_eq!(complete.schema_version, partial_schema);
+	}
+}

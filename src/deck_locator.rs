@@ -37,3 +37,43 @@ pub fn scan_deck_contents(deck_path: &Path) -> Result<Vec<PathBuf>, DeckError> {
 	info!("Found {} card files", cards.len());
 	Ok(cards)
 }
+
+#[cfg(test)]
+mod tests {
+	use std::fs;
+
+	use super::scan_deck_contents;
+
+	#[test]
+	fn scan_deck_contents_finds_flash_files() {
+		let dir = tempfile::tempdir().unwrap();
+		fs::write(dir.path().join("a.flash"), "").unwrap();
+		fs::write(dir.path().join("b.flash"), "").unwrap();
+		fs::write(dir.path().join("readme.md"), "").unwrap();
+		fs::create_dir(dir.path().join("subdir")).unwrap();
+
+		let result = scan_deck_contents(dir.path()).unwrap();
+		assert_eq!(result.len(), 2);
+		let names: Vec<String> = result.iter().map(|p| p.file_name().unwrap().to_string_lossy().into()).collect();
+		assert!(names.contains(&"a.flash".into()));
+		assert!(names.contains(&"b.flash".into()));
+	}
+
+	#[test]
+	fn scan_deck_contents_empty_dir() {
+		let dir = tempfile::tempdir().unwrap();
+		let result = scan_deck_contents(dir.path()).unwrap();
+		assert!(result.is_empty());
+	}
+
+	#[test]
+	fn scan_deck_contents_ignores_non_flash_files() {
+		let dir = tempfile::tempdir().unwrap();
+		fs::write(dir.path().join("note.txt"), "hello").unwrap();
+		fs::write(dir.path().join("data.json"), "{}").unwrap();
+		fs::write(dir.path().join("index.flash"), "").unwrap();
+
+		let result = scan_deck_contents(dir.path()).unwrap();
+		assert_eq!(result.len(), 1);
+	}
+}

@@ -128,3 +128,56 @@ impl Default for LapseConfig {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use uuid::Uuid;
+
+	use super::DeckConfig;
+
+	#[test]
+	fn blank_creates_config_with_given_uuid() {
+		let uuid = Uuid::from_u128(42);
+		let config = DeckConfig::blank(uuid);
+		assert_eq!(config.flash_uuid, uuid.to_string());
+	}
+
+	#[test]
+	fn blank_config_name_is_regex() {
+		let config = DeckConfig::blank(Uuid::new_v4());
+		assert_eq!(config.name, "regex");
+	}
+
+	#[test]
+	fn blank_config_has_max_taken_100() {
+		let config = DeckConfig::blank(Uuid::new_v4());
+		assert_eq!(config.max_taken, Some(100));
+	}
+
+	#[test]
+	fn blank_config_has_autoplay_true() {
+		let config = DeckConfig::blank(Uuid::new_v4());
+		assert_eq!(config.autoplay, Some(true));
+	}
+
+	#[test]
+	fn blank_config_is_not_dynamic() {
+		let config = DeckConfig::blank(Uuid::new_v4());
+		assert!(!config.is_dynamic);
+	}
+
+	#[test]
+	fn blank_config_kind_is_deck_config() {
+		let config = DeckConfig::blank(Uuid::new_v4());
+		assert!(matches!(config.kind, super::ConfigType::DeckConfig));
+	}
+
+	#[test]
+	fn blank_config_uuid_is_unique() {
+		let u1 = Uuid::new_v4();
+		let u2 = Uuid::new_v4();
+		let c1 = DeckConfig::blank(u1);
+		let c2 = DeckConfig::blank(u2);
+		assert_ne!(c1.flash_uuid, c2.flash_uuid);
+	}
+}

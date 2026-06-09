@@ -102,3 +102,146 @@ pub fn determine_changes<'borrow, 'content>(
 		Ok(Some(Transforms::Modifications(modifications)))
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use std::borrow::Cow;
+
+	use crate::note::{Note, NoteField, NoteModel, TextElement};
+
+	use super::determine_changes;
+
+	fn note(front: &str, back: &str) -> Note<'static> {
+		Note {
+			fields: vec![
+				NoteField { name: "Front".into(), content: vec![TextElement::Text(front.into())] },
+				NoteField { name: "Back".into(), content: vec![TextElement::Text(back.into())] },
+			],
+			model: Cow::Owned(NoteModel::default()),
+			tags: Vec::new(),
+		}
+	}
+
+	#[test]
+	fn identical_decks_returns_none() {
+		let a = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let result = determine_changes(&a, &a).unwrap();
+		assert!(result.is_none());
+	}
+
+	#[test]
+	fn additions_when_deck_grows() {
+		let old = vec![note("Q1", "A1")];
+		let new = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+	}
+
+	#[test]
+	fn additions_at_start() {
+		let old = vec![note("Q1", "A1")];
+		let new = vec![note("Q0", "A0"), note("Q1", "A1")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+	}
+
+	#[test]
+	fn additions_in_middle() {
+		let old = vec![note("Q1", "A1"), note("Q3", "A3")];
+		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+	}
+
+	#[test]
+	fn deletions_when_deck_shrinks() {
+		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let new = vec![note("Q1", "A1")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+	}
+
+	#[test]
+	fn deletions_at_start() {
+		let old = vec![note("Q0", "A0"), note("Q1", "A1")];
+		let new = vec![note("Q1", "A1")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+	}
+
+	#[test]
+	fn deletions_in_middle() {
+		let old = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3")];
+		let new = vec![note("Q1", "A1"), note("Q3", "A3")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+	}
+
+	#[test]
+	fn reorder_when_same_cards_different_order() {
+		let n1 = note("Q1", "A1");
+		let n2 = note("Q2", "A2");
+		let a = vec![n1.clone(), n2.clone()];
+		let b = vec![n2, n1];
+		let result = determine_changes(&a, &b).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Reorders(_))));
+	}
+
+	#[test]
+	fn reorder_of_three() {
+		let n1 = note("Q1", "A1");
+		let n2 = note("Q2", "A2");
+		let n3 = note("Q3", "A3");
+		let a = vec![n1.clone(), n2.clone(), n3.clone()];
+		let b = vec![n3, n1, n2];
+		let result = determine_changes(&a, &b).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Reorders(_))));
+	}
+
+	#[test]
+	fn modifications_when_same_length_different_content() {
+		let a = vec![note("Q1", "A1")];
+		let b = vec![note("Q1", "A1_changed")];
+		let result = determine_changes(&a, &b).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Modifications(_))));
+	}
+
+	#[test]
+	fn modifications_multiple() {
+		let a = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let b = vec![note("Q1_x", "A1_x"), note("Q2", "A2_y")];
+		let result = determine_changes(&a, &b).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Modifications(_))));
+	}
+
+	#[test]
+	fn empty_decks_identical() {
+		let empty: Vec<Note<'static>> = Vec::new();
+		let result = determine_changes(&empty, &empty).unwrap();
+		assert!(result.is_none());
+	}
+
+	#[test]
+	fn empty_to_non_empty_is_addition() {
+		let empty: Vec<Note<'static>> = Vec::new();
+		let new = vec![note("Q1", "A1")];
+		let result = determine_changes(&empty, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+	}
+
+	#[test]
+	fn non_empty_to_empty_is_deletion() {
+		let old = vec![note("Q1", "A1")];
+		let empty: Vec<Note<'static>> = Vec::new();
+		let result = determine_changes(&old, &empty).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+	}
+
+	#[test]
+	fn addition_and_identical_prefix() {
+		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3"), note("Q4", "A4")];
+		let result = determine_changes(&old, &new).unwrap();
+		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+	}
+}

@@ -135,4 +135,29 @@ mod tests {
 		assert_eq!(result.get("Valid"), Some(&1));
 		assert_eq!(result.get("AlsoValid"), Some(&99));
 	}
+
+	#[test]
+	fn parse_ids_nested_skips_negative_ids() {
+		let value = json!({
+			"Deck1": -1,
+			"Deck2": 0,
+			"Deck3": 42
+		});
+		let result = parse_ids(&value);
+		assert_eq!(result.get("Deck1"), Some(&(-1)));
+		assert_eq!(result.get("Deck2"), Some(&0));
+		assert_eq!(result.get("Deck3"), Some(&42));
+	}
+
+	#[test]
+	fn parse_ids_handles_deeply_nested() {
+		let value = json!({
+			"a::b::c": 1,
+			"d::e": 2
+		});
+		let result = parse_ids(&value);
+		assert_eq!(result.len(), 2);
+		assert_eq!(result.get("a::b::c"), Some(&1));
+		assert_eq!(result.get("d::e"), Some(&2));
+	}
 }

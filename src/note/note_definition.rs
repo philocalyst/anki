@@ -183,3 +183,66 @@ pub struct Field {
 	pub sticky:           Option<bool>,
 	pub associated_media: Option<Vec<PathBuf>>,
 }
+
+#[cfg(test)]
+mod tests {
+	use super::{Cloze, djot_to_string};
+
+	#[test]
+	fn djot_to_string_empty() {
+		assert_eq!(djot_to_string(&[]), "");
+	}
+
+	#[test]
+	fn djot_to_string_single_text() {
+		let events = vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("Hello"))];
+		assert_eq!(djot_to_string(&events), "Hello");
+	}
+
+	#[test]
+	fn djot_to_string_multiple_texts() {
+		let events = vec![
+			jotdown::Event::Str(std::borrow::Cow::Borrowed("Hello ")),
+			jotdown::Event::Str(std::borrow::Cow::Borrowed("World")),
+		];
+		assert_eq!(djot_to_string(&events), "Hello World");
+	}
+
+	#[test]
+	fn djot_to_string_skips_non_str_events() {
+		let events = vec![
+			jotdown::Event::Str(std::borrow::Cow::Borrowed("Hello")),
+			jotdown::Event::Softbreak,
+			jotdown::Event::Str(std::borrow::Cow::Borrowed("World")),
+		];
+		assert_eq!(djot_to_string(&events), "HelloWorld");
+	}
+
+	#[test]
+	fn cloze_cmp_orders_by_id() {
+		let a = Cloze { id: 1, answer: Vec::new(), hint: None };
+		let b = Cloze { id: 2, answer: Vec::new(), hint: None };
+		let c = Cloze { id: 1, answer: Vec::new(), hint: None };
+		assert!(a < b);
+		assert!(b > a);
+		assert_eq!(a, c);
+	}
+
+	#[test]
+	fn cloze_partial_cmp_matches_cmp() {
+		let a = Cloze { id: 1, answer: Vec::new(), hint: None };
+		let b = Cloze { id: 2, answer: Vec::new(), hint: None };
+		assert_eq!(a.partial_cmp(&b), Some(std::cmp::Ordering::Less));
+		assert_eq!(b.partial_cmp(&a), Some(std::cmp::Ordering::Greater));
+		assert_eq!(a.partial_cmp(&a), Some(std::cmp::Ordering::Equal));
+	}
+
+	#[test]
+	fn cloze_ord_consistent_with_partial_ord() {
+		let a = Cloze { id: 3, answer: Vec::new(), hint: None };
+		let b = Cloze { id: 7, answer: Vec::new(), hint: None };
+		assert_eq!(a.cmp(&b), std::cmp::Ordering::Less);
+		assert_eq!(b.cmp(&a), std::cmp::Ordering::Greater);
+		assert_eq!(a.cmp(&a), std::cmp::Ordering::Equal);
+	}
+}

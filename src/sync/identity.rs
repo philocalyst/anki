@@ -169,4 +169,63 @@ mod tests {
 		let css = "/* flash-uuid: not-a-real-uuid-here */";
 		assert_eq!(parse_model_uuid_from_css(css), None);
 	}
+
+	#[test]
+	fn parse_note_uuid_from_tag_exact_three_parts() {
+		let parts = "flash::a::b";
+		assert_eq!(parse_note_uuid_from_tag(parts), None);
+	}
+
+	#[test]
+	fn parse_note_uuid_from_tag_not_flash_prefix() {
+		let tag = "other::00000000-0000-0000-0000-000000000001::00000000-0000-0000-0000-00000000002a";
+		assert_eq!(parse_note_uuid_from_tag(tag), None);
+	}
+
+	#[test]
+	fn parse_deck_uuid_from_tag_requires_at_least_two_parts() {
+		assert_eq!(parse_deck_uuid_from_tag("flash"), None);
+	}
+
+	#[test]
+	fn parse_deck_uuid_from_tag_not_flash_prefix() {
+		assert_eq!(parse_deck_uuid_from_tag("other::uuid"), None);
+	}
+
+	#[test]
+	fn parse_model_uuid_from_css_empty_string() {
+		assert_eq!(parse_model_uuid_from_css(""), None);
+	}
+
+	#[test]
+	fn parse_model_uuid_from_css_no_comment() {
+		assert_eq!(parse_model_uuid_from_css(".card { color: red; }"), None);
+	}
+
+	#[test]
+	fn parse_model_uuid_from_css_with_trailing_content() {
+		let css = "/* flash-uuid: 550e8400-e29b-41d4-a716-446655440000 */\n.card { }";
+		let parsed = parse_model_uuid_from_css(css);
+		assert!(parsed.is_some());
+	}
+
+	#[test]
+	fn parse_model_uuid_from_css_incomplete_suffix() {
+		let css = "/* flash-uuid: 550e8400-e29b-41d4-a716-446655440000";
+		assert_eq!(parse_model_uuid_from_css(css), None);
+	}
+
+	#[test]
+	fn flash_tag_prefix_ends_with_double_colon() {
+		let deck = Uuid::new_v4();
+		let prefix = flash_tag_prefix(&deck);
+		assert!(prefix.ends_with("::"));
+	}
+
+	#[test]
+	fn flash_tag_wildcard_ends_with_star() {
+		let deck = Uuid::new_v4();
+		let wildcard = flash_tag_wildcard(&deck);
+		assert!(wildcard.ends_with("*"));
+	}
 }
