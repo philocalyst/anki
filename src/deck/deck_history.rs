@@ -139,7 +139,7 @@ impl<'model> super::Deck<'model> {
 			DeckConfig::blank(deck_identifer)
 		};
 
-		if configuration.crowdanki_uuid.is_empty() {
+		if configuration.flash_uuid.is_empty() {
 			configuration.crowdanki_uuid = deck_identifer.to_string()
 		}
 
