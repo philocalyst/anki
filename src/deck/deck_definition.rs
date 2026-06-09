@@ -1,6 +1,6 @@
 use gix::Repository;
 
-use crate::{crowd_anki::DeckConfig, note::{Identified, Note, NoteModel}};
+use crate::{config::DeckConfig, note::{Identified, Note, NoteModel}};
 
 #[derive(Clone)]
 pub struct Deck<'model> {
