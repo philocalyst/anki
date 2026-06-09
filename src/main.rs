@@ -42,33 +42,47 @@ fn init() -> Result<()> {
 	Ok(())
 }
 
-fn main() -> Result<()> {
-	init();
+#[tokio::main]
+async fn main() -> Result<()> {
+	init()?;
 	let args = Args::parse();
 
-	info!("Starting Anki deck parser");
+	info!("Starting flash sync for {} deck(s)", args.decks.len());
 
-	let mut entities = Vec::with_capacity(args.decks.len());
-
+	// Parse all decks
+	let mut decks = Vec::with_capacity(args.decks.len());
 	for deck_path in &args.decks {
 		info!("Parsing deck at: {:?}", deck_path);
 		let deck = Deck::from(deck_path.clone())
 			.wrap_err_with(|| format!("Failed to parse deck at {:?}", deck_path))?;
-		entities.push(deck.into());
+		decks.push((deck_path.clone(), deck));
 	}
 
-	let out = if entities.len() == 1 {
-		sonic_rs::serde::to_string(&entities[0])?
-	} else {
-		sonic_rs::serde::to_string(&entities)?
-	};
+	// Connect to Anki and sync all decks
+	info!("Initializing sync engine...");
+	let mut engine = SyncEngine::new().await?;
 
-	fs::write(&args.output, out)
-		.wrap_err_with(|| format!("Failed to write output to {:?}", args.output))?;
+	// TODO: Move behind a trait for different export backends?
+	for (deck_path, deck) in &decks {
+		let deck_uuid = deck
+			.configuration
+			.flash_uuid
+			.parse()
+			.wrap_err_with(|| format!("Invalid deck UUID: {}", deck.configuration.flash_uuid))?;
 
-	info!("Wrote output to {:?}", args.output);
-	info!("Deck parsing completed ({} deck(s))", args.decks.len());
+		engine
+			.sync(
+				deck_path,
+				&deck_uuid,
+				&deck.configuration.name,
+				&deck.models,
+				&deck.cards,
+				&deck.configuration,
+			)
+			.await?;
+	}
 
+	info!("Sync completed for {} deck(s)", decks.len());
 	Ok(())
 }
 
