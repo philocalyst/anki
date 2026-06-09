@@ -201,3 +201,37 @@ fn cli_outputs_include_note_uuids() -> Result<(), Box<dyn Error>> {
 
 	Ok(())
 }
+
+#[test]
+fn cli_uuids_are_consistent_across_runs() -> Result<(), Box<dyn Error>> {
+	let data_home = prepare_data_home()?;
+	let deck_root = tempfile::tempdir()?;
+
+	let deck_repo = make_deck_repo(deck_root.path(), "test.deck", MINIMAL_DECK_CONTENT)?;
+	let output_dir = tempfile::tempdir()?;
+	let output_path = output_dir.path().join("run1.json");
+
+	run_cli(&[deck_repo.clone()], &output_path, data_home.path())?;
+	let json1: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
+	let ids1: Vec<String> = json1[0]["card_ids"]
+		.as_array()
+		.unwrap()
+		.iter()
+		.map(|v| v.as_str().unwrap().to_string())
+		.collect();
+
+	let output_path2 = output_dir.path().join("run2.json");
+	run_cli(&[deck_repo], &output_path2, data_home.path())?;
+	let json2: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path2)?)?;
+	let ids2: Vec<String> = json2[0]["card_ids"]
+		.as_array()
+		.unwrap()
+		.iter()
+		.map(|v| v.as_str().unwrap().to_string())
+		.collect();
+
+	assert_eq!(ids1, ids2, "UUIDs should be deterministic across runs");
+	assert_eq!(json1[0]["flash_uuid"], json2[0]["flash_uuid"], "Deck UUID should be deterministic");
+
+	Ok(())
+}
