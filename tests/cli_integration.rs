@@ -41,16 +41,17 @@ fn prepare_data_home() -> Result<TempDir, Box<dyn Error>> {
 }
 
 fn run_git(arguments: &[&str], working_directory: &Path) -> Result<(), Box<dyn Error>> {
-	let output = Command::new("git")
-		.args(arguments)
-		.current_dir(working_directory)
-		.env("GIT_AUTHOR_NAME", "Flash Tests")
-		.env("GIT_AUTHOR_EMAIL", "flash-tests@example.com")
-		.env("GIT_AUTHOR_DATE", "2024-01-01T00:00:00Z")
-		.env("GIT_COMMITTER_NAME", "Flash Tests")
-		.env("GIT_COMMITTER_EMAIL", "flash-tests@example.com")
-		.env("GIT_COMMITTER_DATE", "2024-01-01T00:00:00Z")
-		.output()?;
+	let mut cmd = Command::new("git");
+	cmd.args(&["-c", "commit.gpgSign=false", "-c", "tag.gpgSign=false"]);
+	cmd.args(arguments);
+	cmd.current_dir(working_directory);
+	cmd.env("GIT_AUTHOR_NAME", "Flash Tests");
+	cmd.env("GIT_AUTHOR_EMAIL", "flash-tests@example.com");
+	cmd.env("GIT_AUTHOR_DATE", "2024-01-01T00:00:00Z");
+	cmd.env("GIT_COMMITTER_NAME", "Flash Tests");
+	cmd.env("GIT_COMMITTER_EMAIL", "flash-tests@example.com");
+	cmd.env("GIT_COMMITTER_DATE", "2024-01-01T00:00:00Z");
+	let output = cmd.output()?;
 
 	if output.status.success() {
 		return Ok(());
