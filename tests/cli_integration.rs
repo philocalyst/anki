@@ -374,3 +374,31 @@ fn cli_handles_deck_with_many_notes() -> Result<(), Box<dyn Error>> {
 
 	Ok(())
 }
+
+#[test]
+fn cli_handles_deck_with_model_directory() -> Result<(), Box<dyn Error>> {
+	let data_home = prepare_data_home()?;
+	let deck_root = tempfile::tempdir()?;
+	let micro_repo = borrow_deck_repo(
+		deck_root.path(),
+		"micro.deck",
+		"out/Micro.deck/index.flash",
+		Some("/ Basic /\nalias Question to Q\nalias Answer to A\n\n"),
+	)?;
+	let output_dir = tempfile::tempdir()?;
+	let output_path = output_dir.path().join("model-deck.json");
+
+	let output = run_cli(&[micro_repo], &output_path, data_home.path())?;
+	assert!(
+		output.status.success(),
+		"CLI failed on deck with model directory:\nstderr:\n{}",
+		String::from_utf8_lossy(&output.stderr)
+	);
+
+	let json: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
+	assert_eq!(json.len(), 1);
+	assert!(json[0]["note_count"].as_i64().unwrap_or(0) > 0);
+	assert_eq!(json[0]["model_count"].as_i64().unwrap_or(0), 1);
+
+	Ok(())
+}
