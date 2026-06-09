@@ -110,7 +110,7 @@ fn run_cli(
 	data_home: &Path,
 ) -> Result<Output, Box<dyn Error>> {
 	let mut command = Command::new(env!("CARGO_BIN_EXE_flash"));
-	command.arg("--output").arg(output_path);
+	command.arg("--output-json").arg(output_path);
 	command.env("XDG_DATA_HOME", data_home);
 
 	for deck_path in deck_paths {
