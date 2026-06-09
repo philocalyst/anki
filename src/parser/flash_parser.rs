@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
+use std::{
+	borrow::Cow,
+	collections::{HashMap, HashSet},
+	fs,
+	path::{Path, PathBuf},
+};
 
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
@@ -8,14 +13,17 @@ use semver::Version;
 #[cfg(test)]
 use uuid::Uuid;
 
-use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 #[cfg(test)]
 use crate::{deck::Deck, note::Field};
+use crate::{
+	deck::deck_history::parse_cards,
+	note::{Cloze, Note, NoteField, NoteModel, TextElement},
+};
 
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited:  HashSet<PathBuf>,
+	visited: HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -334,10 +342,10 @@ where
 
 /// Build a note from parsed components
 struct NoteComponents<'model> {
-	model:   &'model NoteModel,
+	model: &'model NoteModel,
 	aliases: HashMap<String, String>,
-	tags:    Vec<String>,
-	fields:  Vec<NoteField<'model>>,
+	tags: Vec<String>,
+	fields: Vec<NoteField<'model>>,
 }
 
 impl<'model> NoteComponents<'model> {
@@ -484,7 +492,6 @@ for (i, model_field) in fields.iter().enumerate() {
 			for field in &fields {
 				let resolved_name = alias_map.get(&field.name).or(unique_prefix.get(&field.name)).unwrap_or(&field.name);
 
-				dbg!(&resolved_name);
 				// Setting the fields provided to true within the evaluation context
 				eval_empty_with_context_mut(&format!("{} = true", resolved_name), &mut context).unwrap();
 
@@ -532,27 +539,26 @@ for (i, model_field) in fields.iter().enumerate() {
 #[cfg(test)]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name:           "Basic".to_string(),
-		id:             Uuid::new_v4(),
-		templates:      vec![],
+		name: "Basic".to_string(),
+		id: Uuid::new_v4(),
+		templates: vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults:       None,
-		css:            "".to_string(),
-		fields:         vec![
+		defaults: None,
+		css: "".to_string(),
+		fields: vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre:      None,
-		latex_post:     None,
-		sort_field:     None,
-		tags:           None,
+		latex_pre: None,
+		latex_post: None,
+		sort_field: None,
+		tags: None,
 		// Requirement: Front must be present
-		required:       evalexpr::build_operator_tree("Front").unwrap(),
+		required: evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
 
 #[test]
-#[cfg(test)]
 fn test_alias_and_multiple_notes() {
 	let models = vec![mock_model()];
 	let input = r#"
@@ -567,7 +573,7 @@ alias Back to b
 (b) Yes.
 "#;
 
-	let notes = Deck::parse_cards(&models, input).expect("Should parse successfully");
+	let notes = parse_cards(&models, input).expect("Should parse successfully");
 	let first_field_content = notes[0].fields[0]
 		.content
 		.iter()

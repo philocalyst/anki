@@ -1,10 +1,11 @@
-use ankit::{AnkiClient, actions::MultiAction};
+use std::collections::HashSet;
+
 use eyre::{Result, bail};
-use serde_json::json;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::config::DeckConfig;
+use crate::sync::client::{FlashClient, unique_name};
 use crate::sync::connection::CollectionSnapshot;
 use crate::sync::identity::FLASH_DECK_UUID_KEY;
 
@@ -17,7 +18,7 @@ pub struct DeckSyncData {
 /// Sync a deck: create if new, update if existing.
 /// Returns the deck name as it exists in Anki (may differ if renamed).
 pub async fn sync_deck(
-	client: &AnkiClient,
+	client: &FlashClient,
 	deck: &DeckSyncData,
 	snapshot: &CollectionSnapshot,
 ) -> Result<String> {
@@ -40,22 +41,15 @@ pub async fn sync_deck(
 		Ok(anki_name)
 	} else {
 		// No deck with our UUID found — check if a deck with our name already exists
-		let target_name = if snapshot.decks.contains_key(&deck.name) {
-			// Name collision — append suffix (like CrowdAnki does)
-			let mut suffix = 2;
-			let mut candidate = format!("{} {}", deck.name, suffix);
-			while snapshot.decks.contains_key(&candidate) {
-				suffix += 1;
-				candidate = format!("{} {}", deck.name, suffix);
-			}
+		let existing: HashSet<String> = snapshot.decks.keys().cloned().collect();
+		let target_name = unique_name(&deck.name, &existing);
+
+		if target_name != deck.name {
 			warn!(
 				"Deck name '{}' already taken, using '{}'",
-				deck.name, candidate
+				deck.name, target_name
 			);
-			candidate
-		} else {
-			deck.name.clone()
-		};
+		}
 
 		info!("Creating new deck '{}'", target_name);
 		client.decks().create(&target_name).await.map_err(|e| {
@@ -71,7 +65,7 @@ pub async fn sync_deck(
 
 /// Find a deck by its flash UUID stored in the deck config.
 async fn find_deck_by_config_uuid(
-	client: &AnkiClient,
+	client: &FlashClient,
 	deck_uuid: &Uuid,
 ) -> Result<Option<String>> {
 	let deck_names = client.decks().names().await.map_err(|e| {
@@ -81,16 +75,7 @@ async fn find_deck_by_config_uuid(
 	let uuid_str = deck_uuid.to_string();
 
 	for name in &deck_names {
-		let results = client
-			.misc()
-			.multi(&[MultiAction::with_params(
-				"getDeckConfig",
-				json!({"deck": name}),
-			)])
-			.await
-			.map_err(|e| eyre::eyre!("Failed to get deck config for '{}': {}", name, e))?;
-
-		if let Some(config) = results.into_iter().next() {
+		if let Some(config) = client.get_deck_config(name).await? {
 			if let Some(found) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str()) {
 				if found == uuid_str {
 					return Ok(Some(name.clone()));
@@ -104,36 +89,20 @@ async fn find_deck_by_config_uuid(
 
 /// Store the flash UUID in a deck's config so we can find it later.
 async fn store_deck_uuid(
-	client: &AnkiClient,
+	client: &FlashClient,
 	deck_name: &str,
 	deck_uuid: &Uuid,
 ) -> Result<()> {
-	let results = client
-		.misc()
-		.multi(&[MultiAction::with_params(
-			"getDeckConfig",
-			json!({"deck": deck_name}),
-		)])
-		.await
-		.map_err(|e| eyre::eyre!("Failed to get deck config for '{}': {}", deck_name, e))?;
-
-	let mut config = match results.into_iter().next() {
+	let mut config = match client.get_deck_config(deck_name).await? {
 		Some(serde_json::Value::Object(map)) => map,
 		_ => {
 			bail!("Unexpected deck config format for '{}'", deck_name);
 		}
 	};
 
-	config.insert(FLASH_DECK_UUID_KEY.to_string(), json!(deck_uuid.to_string()));
+	config.insert(FLASH_DECK_UUID_KEY.to_string(), serde_json::Value::String(deck_uuid.to_string()));
 
-	client
-		.misc()
-		.multi(&[MultiAction::with_params(
-			"saveDeckConfig",
-			json!({"config": &config}),
-		)])
-		.await
-		.map_err(|e| eyre::eyre!("Failed to save deck config for '{}': {}", deck_name, e))?;
+	client.save_deck_config(&config).await?;
 
 	info!("Stored flash UUID in deck config for '{}'", deck_name);
 	Ok(())

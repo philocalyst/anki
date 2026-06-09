@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use ankit::{AnkiClient, CreateModelParams};
+use ankit::CreateModelParams;
 use eyre::Result;
 use tracing::{info, warn};
 
+use crate::sync::client::{FlashClient, unique_name};
 use crate::sync::identity::make_model_uuid_comment;
 
 pub struct ModelSyncData {
@@ -22,7 +23,7 @@ pub struct TemplateSyncData {
 	pub back:  String,
 }
 
-pub async fn sync_model(client: &AnkiClient, model: &ModelSyncData) -> Result<String> {
+pub async fn sync_model(client: &FlashClient, model: &ModelSyncData) -> Result<String> {
 	let existing_model_name = find_model_by_uuid(client, &model.uuid).await?;
 
 	let model_name = if let Some(existing_name) = existing_model_name {
@@ -37,7 +38,7 @@ pub async fn sync_model(client: &AnkiClient, model: &ModelSyncData) -> Result<St
 	Ok(model_name)
 }
 
-async fn find_model_by_uuid(client: &AnkiClient, uuid: &uuid::Uuid) -> Result<Option<String>> {
+async fn find_model_by_uuid(client: &FlashClient, uuid: &uuid::Uuid) -> Result<Option<String>> {
 	let model_names = client.models().names().await.map_err(|e| {
 		eyre::eyre!("Failed to get model names: {}", e)
 	})?;
@@ -58,17 +59,12 @@ async fn find_model_by_uuid(client: &AnkiClient, uuid: &uuid::Uuid) -> Result<Op
 	Ok(None)
 }
 
-async fn create_model(client: &AnkiClient, model: &ModelSyncData) -> Result<String> {
-	let names = client.models().names().await.map_err(|e| {
+async fn create_model(client: &FlashClient, model: &ModelSyncData) -> Result<String> {
+	let existing_names: HashSet<String> = client.models().names().await.map_err(|e| {
 		eyre::eyre!("Failed to get model names: {}", e)
-	})?;
+	})?.into_iter().collect();
 
-	let mut target_name = model.name.clone();
-	let mut name_suffix = 2;
-	while names.contains(&target_name) {
-		target_name = format!("{} {}", model.name, name_suffix);
-		name_suffix += 1;
-	}
+	let target_name = unique_name(&model.name, &existing_names);
 
 	let mut params = CreateModelParams::new(&target_name);
 	for field_name in &model.fields {
@@ -94,7 +90,7 @@ async fn create_model(client: &AnkiClient, model: &ModelSyncData) -> Result<Stri
 }
 
 async fn update_model_if_changed(
-	client: &AnkiClient,
+	client: &FlashClient,
 	model: &ModelSyncData,
 	existing_name: &str,
 ) -> Result<()> {

@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use ankit::{AnkiClient, NoteBuilder};
+use ankit::NoteBuilder;
 use eyre::Result;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::note::{Identified, Note, TextElement, djot_to_string};
+use crate::sync::client::FlashClient;
 use crate::sync::identity::{flash_tag_prefix, make_flash_tag};
 
 pub struct NoteSyncData {
@@ -49,7 +50,7 @@ impl<'model> From<&Identified<Note<'model>>> for NoteSyncData {
 }
 
 pub async fn sync_note(
-	client: &AnkiClient,
+	client: &FlashClient,
 	note: &NoteSyncData,
 	deck_uuid: &Uuid,
 	deck_name: &str,
@@ -101,7 +102,7 @@ pub async fn sync_note(
 	}
 }
 
-pub async fn get_tagged_note_ids(client: &AnkiClient, deck_uuid: &Uuid) -> Result<Vec<i64>> {
+pub async fn get_tagged_note_ids(client: &FlashClient, deck_uuid: &Uuid) -> Result<Vec<i64>> {
 	let query = flash_tag_prefix(deck_uuid);
 	let ids = client
 		.notes()

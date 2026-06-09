@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use ankit::AnkiClient;
 use eyre::Result;
 use tracing::info;
 use uuid::Uuid;
@@ -10,6 +9,7 @@ use crate::config::DeckConfig;
 use crate::note::Identified;
 use crate::note::Note as FlashNote;
 
+use crate::sync::client::FlashClient;
 use crate::sync::connection::{self, CollectionSnapshot};
 use crate::sync::deck_sync::{self, DeckSyncData};
 use crate::sync::media_sync;
@@ -18,13 +18,13 @@ use crate::sync::note_sync::{self, NoteSyncData};
 use crate::sync::reconcile;
 
 pub struct SyncEngine {
-	client: AnkiClient,
+	client:   FlashClient,
 	snapshot: CollectionSnapshot,
 }
 
 impl SyncEngine {
 	pub async fn new() -> Result<Self> {
-		let client = AnkiClient::new();
+		let client = FlashClient(ankit::AnkiClient::new());
 
 		connection::check_connection(&client).await?;
 		info!("Connection to Anki verified");
@@ -39,7 +39,6 @@ impl SyncEngine {
 		Ok(Self { client, snapshot })
 	}
 
-	// TODO: Change this to a fluent API
 	pub async fn sync(
 		&mut self,
 		deck_path: &Path,

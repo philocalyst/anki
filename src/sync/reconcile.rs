@@ -1,16 +1,16 @@
 use std::collections::HashSet;
 
-use ankit::AnkiClient;
 use eyre::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::sync::client::FlashClient;
 use crate::sync::identity::{parse_note_uuid_from_tag, flash_tag_wildcard};
 
 /// Delete notes from Anki that have flash tags but whose UUIDs are not in the
 /// current set. This handles the case where a note was removed from a .flash file.
 pub async fn reconcile_deletions(
-	client: &AnkiClient,
+	client: &FlashClient,
 	deck_name: &str,
 	deck_uuid: &Uuid,
 	current_uuids: &HashSet<Uuid>,

@@ -1,13 +1,32 @@
-use std::{fs, mem, path::{Path, PathBuf}};
+use std::{
+	fs, mem,
+	path::{Path, PathBuf},
+};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{Parser, input::{Input, Stream}, span::SimpleSpan};
+use chumsky::{
+	Parser,
+	input::{Input, Stream},
+	span::SimpleSpan,
+};
 use gix::{Commit, Repository, object::tree::Entry};
 use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{change_resolver::resolve_changes, change_router::determine_changes, config::DeckConfig, deck::{Deck, blob_entry::BEntry}, deck_locator::scan_deck_contents, error::DeckError, model_catalog::{FilesystemModelCatalog, ModelCatalog}, note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable}, note_id_generator::{GitNoteIdGenerator, NoteIdGenerator}, parser::{ImportExpander, Token, flash}, uuid_generator::{self, HostUuid, generate_core_identifier}};
+use crate::{
+	change_resolver::resolve_changes,
+	change_router::determine_changes,
+	config::DeckConfig,
+	deck::{Deck, blob_entry::BEntry},
+	deck_locator::scan_deck_contents,
+	error::DeckError,
+	model_catalog::{FilesystemModelCatalog, ModelCatalog},
+	note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable},
+	note_id_generator::{GitNoteIdGenerator, NoteIdGenerator},
+	parser::{ImportExpander, Token, flash},
+	uuid_generator::{self, HostUuid, generate_core_identifier},
+};
 
 pub fn get_file_history<'repo>(
 	vcs: &'repo Repository,
@@ -214,14 +233,6 @@ impl<'model> super::Deck<'model> {
 	) -> Result<Vec<Uuid>, DeckError> {
 		GitNoteIdGenerator.generate_note_ids_for_revision(models, backing_vcs, target)
 	}
-
-	#[cfg(test)]
-	pub(crate) fn parse_cards<'model>(
-		models: &'model [NoteModel],
-		content: &'model str,
-	) -> Result<Vec<Note<'model>>, DeckError> {
-		parse_cards(models, content)
-	}
 }
 
 impl NoteIdGenerator for GitNoteIdGenerator {
@@ -281,7 +292,10 @@ fn derive_core_id(vcs: &Repository) -> Result<Uuid, DeckError> {
 	Err(DeckError::EmptyHistory)
 }
 
-fn parse_cards<'model>(models: &'model [NoteModel], content: &'model str) -> Result<Vec<Note<'model>>, DeckError> {
+pub fn parse_cards<'model>(
+	models: &'model [NoteModel],
+	content: &'model str,
+) -> Result<Vec<Note<'model>>, DeckError> {
 	debug!("Parsing card content");
 
 	// Create the lexer
