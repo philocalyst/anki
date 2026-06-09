@@ -306,3 +306,20 @@ fn cli_fails_on_empty_directory() {
 		Err(_) => {} // Acceptable
 	}
 }
+
+#[test]
+fn cli_fails_on_directory_without_git_repo() {
+	let data_home = tempfile::tempdir().unwrap();
+	let deck_root = tempfile::tempdir().unwrap();
+	let output_dir = tempfile::tempdir().unwrap();
+	let output_path = output_dir.path().join("out.json");
+
+	fs::write(deck_root.path().join("index.flash"), "(Q) Test?\n(A) Answer\n").unwrap();
+
+	let result = run_cli(&[deck_root.path().to_path_buf()], &output_path, data_home.path());
+
+	match result {
+		Ok(output) => assert!(!output.status.success()),
+		Err(_) => {}
+	}
+}
