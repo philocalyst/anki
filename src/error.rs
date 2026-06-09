@@ -68,6 +68,9 @@ pub enum DeckError {
 	#[error("Failed to parse deck: {0}")]
 	Parse(String),
 
+	#[error("Multiple types of changes detected between decks.")]
+	MixedChanges,
+
 	#[error("Could not find existing git object: {0}")]
 	ObjectFind(#[from] gix::object::find::existing::Error),
 

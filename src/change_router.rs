@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{error::DeckError, note::Note};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Transforms<'borrow, 'content> {
 	Additions(Vec<(usize, &'borrow Note<'content>)>),
 	Deletions(Vec<usize>),
@@ -43,6 +43,11 @@ pub fn determine_changes<'borrow, 'content>(
 					deck_2_idx += 1;
 				}
 			}
+
+			if deck_1_idx < deck_1.len() {
+				return Err(DeckError::MixedChanges);
+			}
+
 			return Ok(Some(Transforms::Additions(additions)));
 		} else {
 			// Deck shrank - find all deletions by walking both decks
@@ -61,6 +66,11 @@ pub fn determine_changes<'borrow, 'content>(
 					deck_1_idx += 1;
 				}
 			}
+
+			if deck_2_idx < deck_2.len() {
+				return Err(DeckError::MixedChanges);
+			}
+
 			// IMPORTANT: Deletions must be applied in reverse order to maintain
 			// index consistency. When you delete at index 0, everything shifts down,
 			// so we need to delete from the end first.
@@ -92,10 +102,14 @@ pub fn determine_changes<'borrow, 'content>(
 		Ok(Some(Transforms::Reorders(reorderings)))
 	} else {
 		// Different cards at same positions - these are modifications
-		// Find all positions where content changed
+		// BUT check if any card moved - if so, it's a mixed change
 		let mut modifications = Vec::new();
 		for (index, (card1, card2)) in deck_1.iter().zip(deck_2.iter()).enumerate() {
 			if card1 != card2 {
+				// If either card exists elsewhere in the other deck, it's a reorder too
+				if deck_2.iter().any(|c| c == card1) || deck_1.iter().any(|c| c == card2) {
+					return Err(DeckError::MixedChanges);
+				}
 				modifications.push((index, card2));
 			}
 		}
@@ -107,17 +121,21 @@ pub fn determine_changes<'borrow, 'content>(
 mod tests {
 	use std::borrow::Cow;
 
+	use uuid::Uuid;
+
 	use super::determine_changes;
 	use crate::note::{Note, NoteField, NoteModel, TextElement};
 
 	fn note(front: &str, back: &str) -> Note<'static> {
+		let mut model = NoteModel::default();
+		model.id = Uuid::nil();
 		Note {
 			fields: vec![
 				NoteField { name: "Front".into(), content: vec![TextElement::Text(front.into())] },
 				NoteField { name: "Back".into(), content: vec![TextElement::Text(back.into())] },
 			],
-			model:  Cow::Owned(NoteModel::default()),
-			tags:   Vec::new(),
+			model: Cow::Owned(model),
+			tags: Vec::new(),
 		}
 	}
 
@@ -125,7 +143,7 @@ mod tests {
 	fn identical_decks_returns_none() {
 		let a = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let result = determine_changes(&a, &a).unwrap();
-		assert!(result.is_none());
+		assert_eq!(result, None);
 	}
 
 	#[test]
@@ -133,7 +151,10 @@ mod tests {
 		let old = vec![note("Q1", "A1")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Additions(vec![(1, &new[1])]))
+		);
 	}
 
 	#[test]
@@ -141,7 +162,10 @@ mod tests {
 		let old = vec![note("Q1", "A1")];
 		let new = vec![note("Q0", "A0"), note("Q1", "A1")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Additions(vec![(0, &new[0])]))
+		);
 	}
 
 	#[test]
@@ -149,7 +173,10 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q3", "A3")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Additions(vec![(1, &new[1])]))
+		);
 	}
 
 	#[test]
@@ -157,7 +184,7 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let new = vec![note("Q1", "A1")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+		assert_eq!(result, Some(super::Transforms::Deletions(vec![1])));
 	}
 
 	#[test]
@@ -165,7 +192,7 @@ mod tests {
 		let old = vec![note("Q0", "A0"), note("Q1", "A1")];
 		let new = vec![note("Q1", "A1")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+		assert_eq!(result, Some(super::Transforms::Deletions(vec![0])));
 	}
 
 	#[test]
@@ -173,7 +200,7 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3")];
 		let new = vec![note("Q1", "A1"), note("Q3", "A3")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+		assert_eq!(result, Some(super::Transforms::Deletions(vec![1])));
 	}
 
 	#[test]
@@ -183,7 +210,9 @@ mod tests {
 		let a = vec![n1.clone(), n2.clone()];
 		let b = vec![n2, n1];
 		let result = determine_changes(&a, &b).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Reorders(_))));
+		let mut expected = std::collections::HashSet::new();
+		expected.insert((0, 1));
+		assert_eq!(result, Some(super::Transforms::Reorders(expected)));
 	}
 
 	#[test]
@@ -192,9 +221,13 @@ mod tests {
 		let n2 = note("Q2", "A2");
 		let n3 = note("Q3", "A3");
 		let a = vec![n1.clone(), n2.clone(), n3.clone()];
-		let b = vec![n3, n1, n2];
+		let b = vec![n3.clone(), n1.clone(), n2.clone()];
 		let result = determine_changes(&a, &b).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Reorders(_))));
+		let mut expected = std::collections::HashSet::new();
+		expected.insert((0, 1));
+		expected.insert((0, 2));
+		expected.insert((1, 2));
+		assert_eq!(result, Some(super::Transforms::Reorders(expected)));
 	}
 
 	#[test]
@@ -202,7 +235,10 @@ mod tests {
 		let a = vec![note("Q1", "A1")];
 		let b = vec![note("Q1", "A1_changed")];
 		let result = determine_changes(&a, &b).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Modifications(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Modifications(vec![(0, &b[0])]))
+		);
 	}
 
 	#[test]
@@ -210,14 +246,17 @@ mod tests {
 		let a = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let b = vec![note("Q1_x", "A1_x"), note("Q2", "A2_y")];
 		let result = determine_changes(&a, &b).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Modifications(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Modifications(vec![(0, &b[0]), (1, &b[1])]))
+		);
 	}
 
 	#[test]
 	fn empty_decks_identical() {
 		let empty: Vec<Note<'static>> = Vec::new();
 		let result = determine_changes(&empty, &empty).unwrap();
-		assert!(result.is_none());
+		assert_eq!(result, None);
 	}
 
 	#[test]
@@ -225,7 +264,10 @@ mod tests {
 		let empty: Vec<Note<'static>> = Vec::new();
 		let new = vec![note("Q1", "A1")];
 		let result = determine_changes(&empty, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Additions(vec![(0, &new[0])]))
+		);
 	}
 
 	#[test]
@@ -233,7 +275,20 @@ mod tests {
 		let old = vec![note("Q1", "A1")];
 		let empty: Vec<Note<'static>> = Vec::new();
 		let result = determine_changes(&old, &empty).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Deletions(_))));
+		assert_eq!(result, Some(super::Transforms::Deletions(vec![0])));
+	}
+
+	#[test]
+	fn error_on_mixed_changes() {
+		// Case 1: Same length, mix of reorder and modification
+		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let new = vec![note("Q2", "A2"), note("Q3", "A3")];
+		assert!(determine_changes(&old, &new).is_err());
+
+		// Case 2: Different length, mix of addition and deletion
+		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
+		let new = vec![note("Q2", "A2"), note("Q3", "A3"), note("Q4", "A4")];
+		assert!(determine_changes(&old, &new).is_err());
 	}
 
 	#[test]
@@ -241,6 +296,9 @@ mod tests {
 		let old = vec![note("Q1", "A1"), note("Q2", "A2")];
 		let new = vec![note("Q1", "A1"), note("Q2", "A2"), note("Q3", "A3"), note("Q4", "A4")];
 		let result = determine_changes(&old, &new).unwrap();
-		assert!(matches!(result, Some(super::Transforms::Additions(_))));
+		assert_eq!(
+			result,
+			Some(super::Transforms::Additions(vec![(2, &new[2]), (3, &new[3])]))
+		);
 	}
 }
