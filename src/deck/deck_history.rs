@@ -7,7 +7,7 @@ use logos::Logos;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{change_resolver::resolve_changes, change_router::determine_changes, crowd_anki::DeckConfig, deck::{Deck, blob_entry::BEntry}, deck_locator::scan_deck_contents, error::DeckError, model_catalog::{FilesystemModelCatalog, ModelCatalog}, note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable}, note_id_generator::{GitNoteIdGenerator, NoteIdGenerator}, parser::{ImportExpander, Token, flash}, uuid_generator::{self, HostUuid, generate_core_identifier}};
+use crate::{change_resolver::resolve_changes, change_router::determine_changes, config::DeckConfig, deck::{Deck, blob_entry::BEntry}, deck_locator::scan_deck_contents, error::DeckError, model_catalog::{FilesystemModelCatalog, ModelCatalog}, note::{Identified, Note, NoteField, NoteModel, identifiable::Identifiable}, note_id_generator::{GitNoteIdGenerator, NoteIdGenerator}, parser::{ImportExpander, Token, flash}, uuid_generator::{self, HostUuid, generate_core_identifier}};
 
 pub fn get_file_history<'repo>(
 	vcs: &'repo Repository,
