@@ -11,13 +11,3 @@ pub mod note_id_generator;
 pub mod parser;
 pub mod sync;
 pub mod uuid_generator;
-
-#[instrument(skip(note))]
-pub fn print_note_debug(note: &Note) {
-	for field in &note.fields {
-		info!("{} : {:?}", field.name, field.content);
-	}
-	if !note.tags.is_empty() {
-		info!("Tags: {:?}", note.tags);
-	}
-}
