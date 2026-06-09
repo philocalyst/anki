@@ -323,3 +323,23 @@ fn cli_fails_on_directory_without_git_repo() {
 		Err(_) => {}
 	}
 }
+
+#[test]
+fn cli_handles_deck_with_one_note() -> Result<(), Box<dyn Error>> {
+	let data_home = prepare_data_home()?;
+	let deck_root = tempfile::tempdir()?;
+	let content = "/ Basic /\nalias Question to Q\n\n(Q) Just one?\n";
+	let deck_repo = make_deck_repo(deck_root.path(), "lonely.deck", content)?;
+	let output_dir = tempfile::tempdir()?;
+	let output_path = output_dir.path().join("out.json");
+
+	let output = run_cli(&[deck_repo], &output_path, data_home.path())?;
+	assert!(output.status.success());
+
+	let json: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
+	assert_eq!(json.len(), 1);
+	assert_eq!(json[0]["note_count"].as_i64().unwrap_or(0), 1);
+	assert_eq!(json[0]["card_ids"].as_array().map(|a| a.len()).unwrap_or(0), 1);
+
+	Ok(())
+}
