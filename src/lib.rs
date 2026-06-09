@@ -13,6 +13,7 @@ pub mod model_loader;
 pub mod note;
 pub mod note_id_generator;
 pub mod parser;
+pub mod sync;
 pub mod uuid_generator;
 
 #[instrument(skip(note))]
