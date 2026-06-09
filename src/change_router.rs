@@ -10,121 +10,153 @@ pub enum Transforms<'borrow, 'content> {
 	Reorders(HashSet<(usize, usize)>),
 }
 
-fn how_it_grew<'borrow, 'content>(
-	before: &[Note],
-	after: &'borrow [Note<'content>],
-) -> (usize, Vec<(usize, &'borrow Note<'content>)>) {
-	// Deck grew - find all additions by walking both decks
-	let mut additions = Vec::new();
-	let mut deck_1_idx = 0;
-	let mut deck_2_idx = 0;
+pub struct ChangeRouter<'borrow, 'content> {
+	before: &'borrow [Note<'content>],
+	after:  &'borrow [Note<'content>],
+}
 
-	while deck_2_idx < after.len() {
-		if deck_1_idx < before.len() && before[deck_1_idx] == after[deck_2_idx] {
-			// Cards match, advance both pointers
-			deck_1_idx += 1;
-			deck_2_idx += 1;
+impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
+	pub fn new(before: &'borrow [Note<'content>], after: &'borrow [Note<'content>]) -> Self {
+		Self { before, after }
+	}
+
+	pub fn determine_changes(&self) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
+		// Early return if decks are identical - no changes needed
+		if self.before == self.after {
+			return Ok(None);
+		}
+
+		// Case 1: Different lengths - either all additions or all deletions
+		// We can't mix these types because indices would become inconsistent
+		if self.before.len() != self.after.len() {
+			return self.how_it_resized();
+		}
+
+		// Case 2: Same length - could be reordering or modifications
+		if let Some(reorderings) = self.how_it_moved() {
+			return Ok(Some(Transforms::Reorders(reorderings)));
+		}
+
+		Ok(Some(Transforms::Modifications(self.how_it_changed()?)))
+	}
+
+	fn how_it_resized(&self) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
+		if self.after.len() > self.before.len() {
+			return Ok(Some(Transforms::Additions(self.how_it_grew()?)));
 		} else {
-			// Card at deck_2_idx is new - record the addition
-			additions.push((deck_2_idx, &after[deck_2_idx]));
-			deck_2_idx += 1;
+			// Deck shrank - find all deletions by walking both decks
+			return Ok(Some(Transforms::Deletions(self.how_it_shrank()?)));
 		}
 	}
 
-	return (deck_1_idx, additions);
+	fn how_it_grew(&self) -> Result<Vec<(usize, &'borrow Note<'content>)>, DeckError> {
+		// Deck grew - find all additions by walking both decks
+		let mut additions = Vec::new();
+		let mut deck_1_idx = 0;
+		let mut deck_2_idx = 0;
+
+		while deck_2_idx < self.after.len() {
+			if deck_1_idx < self.before.len() && self.before[deck_1_idx] == self.after[deck_2_idx] {
+				// Cards match, advance both pointers
+				deck_1_idx += 1;
+				deck_2_idx += 1;
+			} else {
+				// Card at deck_2_idx is new - record the addition
+				additions.push((deck_2_idx, &self.after[deck_2_idx]));
+				deck_2_idx += 1;
+			}
+		}
+
+		if deck_1_idx < self.before.len() {
+			return Err(DeckError::MixedChanges);
+		}
+
+		Ok(additions)
+	}
+
+	fn how_it_shrank(&self) -> Result<Vec<usize>, DeckError> {
+		// Deck shrank - find all deletions by walking both decks
+		let mut deletions = Vec::new();
+		let mut deck_1_idx = 0;
+		let mut deck_2_idx = 0;
+
+		while deck_1_idx < self.before.len() {
+			if deck_2_idx < self.after.len() && self.before[deck_1_idx] == self.after[deck_2_idx] {
+				// Cards match, advance both pointers
+				deck_1_idx += 1;
+				deck_2_idx += 1;
+			} else {
+				// Card at deck_1_idx was deleted - record the deletion
+				deletions.push(deck_1_idx);
+				deck_1_idx += 1;
+			}
+		}
+
+		if deck_2_idx < self.after.len() {
+			return Err(DeckError::MixedChanges);
+		}
+
+		// IMPORTANT: Deletions must be applied in reverse order to maintain
+		// index consistency. When you delete at index 0, everything shifts down,
+		// so we need to delete from the end first.
+		deletions.reverse();
+		Ok(deletions)
+	}
+
+	fn how_it_moved(&self) -> Option<HashSet<(usize, usize)>> {
+		// Check if it's a reorder by comparing sorted versions
+		let mut sorted_1 = self.before.to_vec();
+		let mut sorted_2 = self.after.to_vec();
+		sorted_1.sort();
+		sorted_2.sort();
+
+		if sorted_1 == sorted_2 {
+			// Same cards, different order - this is a reordering
+			// Find all positions where cards differ
+			let mut reorderings = HashSet::new();
+			for ((idx1, card1), (_, card2)) in
+				self.before.iter().enumerate().zip(self.after.iter().enumerate())
+			{
+				if *card1 != *card2
+					&& let Some(idx2) = self.after.iter().position(|cur| cur == card1)
+				{
+					// Track where each card moved from -> to
+					let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
+					reorderings.insert(swap);
+				}
+			}
+			Some(reorderings)
+		} else {
+			None
+		}
+	}
+
+	fn how_it_changed(&self) -> Result<Vec<(usize, &'borrow Note<'content>)>, DeckError> {
+		// Different cards at same positions - these are modifications
+		// BUT check if any card moved - if so, it's a mixed change
+		let mut modifications = Vec::new();
+		for (index, (card1, card2)) in self.before.iter().zip(self.after.iter()).enumerate() {
+			if card1 != card2 {
+				// If either card exists elsewhere in the other deck, it's a reorder too
+				if self.after.iter().any(|c| c == card1) || self.before.iter().any(|c| c == card2) {
+					return Err(DeckError::MixedChanges);
+				}
+				modifications.push((index, card2));
+			}
+		}
+		Ok(modifications)
+	}
 }
 
 /// Determines the kinds of changes that have occured between two decks. The
 /// returned vector is compromised of just one ChangeType. Errors are returned
 /// when the algorithim detects more than one kind of change.
 pub fn determine_changes<'borrow, 'content>(
-	before: &[Note],
+	before: &'borrow [Note<'content>],
 	after: &'borrow [Note<'content>],
 	// Transforms are relevant only to the new deck
 ) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
-	// Early return if decks are identical - no changes needed
-	if before == after {
-		return Ok(None);
-	}
-
-	// Case 1: Different lengths - either all additions or all deletions
-	// We can't mix these types because indices would become inconsistent
-	if before.len() != after.len() {
-		if after.len() > before.len() {
-			// TODO: Cleaner refactor... Sort of frustrating to pass it up as a tuple here.
-			let (final_intial_index, additions) = how_it_grew(before, after);
-
-			if final_intial_index < before.len() {
-				return Err(DeckError::MixedChanges);
-			}
-
-			return Ok(Some(Transforms::Additions(additions)));
-		} else {
-			// Deck shrank - find all deletions by walking both decks
-			let mut deletions = Vec::new();
-			let mut deck_1_idx = 0;
-			let mut deck_2_idx = 0;
-
-			while deck_1_idx < before.len() {
-				if deck_2_idx < after.len() && before[deck_1_idx] == after[deck_2_idx] {
-					// Cards match, advance both pointers
-					deck_1_idx += 1;
-					deck_2_idx += 1;
-				} else {
-					// Card at deck_1_idx was deleted - record the deletion
-					deletions.push(deck_1_idx);
-					deck_1_idx += 1;
-				}
-			}
-
-			if deck_2_idx < after.len() {
-				return Err(DeckError::MixedChanges);
-			}
-
-			// IMPORTANT: Deletions must be applied in reverse order to maintain
-			// index consistency. When you delete at index 0, everything shifts down,
-			// so we need to delete from the end first.
-			deletions.reverse();
-			return Ok(Some(Transforms::Deletions(deletions)));
-		}
-	}
-
-	// Case 2: Same length - could be reordering or modifications
-	// Check if it's a reorder by comparing sorted versions
-	let mut sorted_1 = before.to_vec();
-	let mut sorted_2 = after.to_vec();
-	sorted_1.sort();
-	sorted_2.sort();
-
-	if sorted_1 == sorted_2 {
-		// Same cards, different order - this is a reordering
-		// Find all positions where cards differ
-		let mut reorderings = HashSet::new();
-		for ((idx1, card1), (_, card2)) in before.iter().enumerate().zip(after.iter().enumerate()) {
-			if *card1 != *card2
-				&& let Some(idx2) = after.iter().position(|cur| cur == card1)
-			{
-				// Track where each card moved from -> to
-				let swap = if idx1 < idx2 { (idx1, idx2) } else { (idx2, idx1) };
-				reorderings.insert(swap);
-			}
-		}
-		Ok(Some(Transforms::Reorders(reorderings)))
-	} else {
-		// Different cards at same positions - these are modifications
-		// BUT check if any card moved - if so, it's a mixed change
-		let mut modifications = Vec::new();
-		for (index, (card1, card2)) in before.iter().zip(after.iter()).enumerate() {
-			if card1 != card2 {
-				// If either card exists elsewhere in the other deck, it's a reorder too
-				if after.iter().any(|c| c == card1) || before.iter().any(|c| c == card2) {
-					return Err(DeckError::MixedChanges);
-				}
-				modifications.push((index, card2));
-			}
-		}
-		Ok(Some(Transforms::Modifications(modifications)))
-	}
+	ChangeRouter::new(before, after).determine_changes()
 }
 
 #[cfg(test)]
