@@ -6,7 +6,7 @@ use flash::deck::Deck;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use flash::sync::SyncEngine;
+use flash::sync::{ExportBackend, JsonBackend, SyncEngine};
 
 fn init_tracing() {
 	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
@@ -25,6 +25,10 @@ struct Args {
         required = true,
     )]
 	decks: Vec<PathBuf>,
+
+	/// Output the parsed deck content as JSON to the specified file.
+	#[arg(long, value_name = "FILE")]
+	output_json: Option<PathBuf>,
 
 	/// Skip deletion reconciliation (keep orphaned notes in Anki).
 	#[arg(long)]
@@ -59,28 +63,19 @@ async fn main() -> Result<()> {
 	}
 
 	// Connect to Anki and sync all decks
-	info!("Initializing sync engine...");
-	let mut engine = SyncEngine::new().await?;
+	let mut backend = if let Some(output_path) = args.output_json {
+		info!("Initializing JSON export backend...");
+		flash::sync::AnyBackend::Json(flash::sync::JsonBackend::new(output_path))
+	} else {
+		info!("Initializing Anki sync engine...");
+		flash::sync::AnyBackend::Sync(flash::sync::SyncEngine::new().await?)
+	};
 
-	// TODO: Move behind a trait for different export backends?
 	for (deck_path, deck) in &decks {
-		let deck_uuid = deck
-			.configuration
-			.flash_uuid
-			.parse()
-			.wrap_err_with(|| format!("Invalid deck UUID: {}", deck.configuration.flash_uuid))?;
-
-		engine
-			.sync(
-				deck_path,
-				&deck_uuid,
-				&deck.configuration.name,
-				&deck.models,
-				&deck.cards,
-				&deck.configuration,
-			)
-			.await?;
+		backend.export(deck_path, deck).await?;
 	}
+
+	backend.finalize().await?;
 
 	info!("Sync completed for {} deck(s)", decks.len());
 	Ok(())
