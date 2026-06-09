@@ -235,3 +235,31 @@ fn cli_uuids_are_consistent_across_runs() -> Result<(), Box<dyn Error>> {
 
 	Ok(())
 }
+
+#[test]
+fn cli_handles_multiple_decks() -> Result<(), Box<dyn Error>> {
+	let data_home = prepare_data_home()?;
+	let deck_root = tempfile::tempdir()?;
+
+	let deck_a = make_deck_repo(deck_root.path(), "deck-a", MINIMAL_DECK_CONTENT)?;
+	let deck_b = make_deck_repo(deck_root.path(), "deck-b", MINIMAL_DECK_CONTENT)?;
+	let output_dir = tempfile::tempdir()?;
+	let output_path = output_dir.path().join("multi.json");
+
+	let output = run_cli(&[deck_a, deck_b], &output_path, data_home.path())?;
+	assert!(
+		output.status.success(),
+		"flash CLI failed:\nstdout:\n{}\nstderr:\n{}",
+		String::from_utf8_lossy(&output.stdout),
+		String::from_utf8_lossy(&output.stderr)
+	);
+
+	let json: Vec<Value> = serde_json::from_str(&fs::read_to_string(&output_path)?)?;
+	assert_eq!(json.len(), 2);
+	assert!(json[0]["flash_uuid"].as_str().map(|s| !s.is_empty()).unwrap_or(false));
+	assert!(json[1]["flash_uuid"].as_str().map(|s| !s.is_empty()).unwrap_or(false));
+	// Both decks have identical content — deterministic UUIDs should match
+	assert_eq!(json[0]["flash_uuid"], json[1]["flash_uuid"]);
+
+	Ok(())
+}
