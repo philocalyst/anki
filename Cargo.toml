@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 ankit = "0.1.0"
 ariadne = "0.5.1"
+base64 = "0.22.1"
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.0", features = ["derive"] }
 color-eyre = "0.6.5"
