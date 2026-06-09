@@ -140,7 +140,7 @@ impl<'model> super::Deck<'model> {
 		};
 
 		if configuration.flash_uuid.is_empty() {
-			configuration.crowdanki_uuid = deck_identifer.to_string()
+			configuration.flash_uuid = deck_identifer.to_string()
 		}
 
 		let history = get_file_history(&vcs, "index.flash")?;
