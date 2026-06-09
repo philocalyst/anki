@@ -11,11 +11,11 @@ fn init_tracing() {
 	tracing_subscriber::fmt().with_env_filter(filter).with_target(false).compact().init();
 }
 
-/// Parse Anki decks into CrowdAnki-compatible JSON
+/// Sync flashcard decks to Anki via Anki-Connect-Plus
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-	/// Paths to deck directories to parse.
+	/// Paths to deck directories to parse and sync.
 	#[arg(
         value_name = "DECK_PATH",
         value_hint = clap::ValueHint::DirPath,
@@ -24,15 +24,13 @@ struct Args {
     )]
 	decks: Vec<PathBuf>,
 
-	/// Output file path (defaults to flash.json)
-	#[arg(
-        short,
-        long,
-        value_name = "FILE",
-        value_hint = clap::ValueHint::FilePath,
-        default_value = "flash.json",
-    )]
-	output: PathBuf,
+	/// Skip deletion reconciliation (keep orphaned notes in Anki).
+	#[arg(long)]
+	no_prune: bool,
+
+	/// Skip media file syncing.
+	#[arg(long)]
+	no_media: bool,
 }
 
 fn init() -> Result<()> {
