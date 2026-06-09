@@ -4,7 +4,7 @@ use crate::note::Note;
 
 pub mod change_resolver;
 pub mod change_router;
-pub mod crowd_anki;
+pub mod config;
 pub mod deck;
 pub mod deck_locator;
 pub mod error;
