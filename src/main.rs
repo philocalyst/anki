@@ -4,7 +4,11 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use eyre::{Context, Result};
-use flash::{deck::Deck, ;use tracing::info;
+use flash::{
+	deck::Deck,
+	sync::{AnyBackend, JsonBackend, SyncEngine},
+};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 fn init_tracing() {
@@ -64,10 +68,10 @@ async fn main() -> Result<()> {
 	// Connect to Anki and sync all decks
 	let mut backend = if let Some(output_path) = args.output_json {
 		info!("Initializing JSON export backend...");
-		flash::sync::AnyBackend::Json(flash::sync::JsonBackend::new(output_path))
+		AnyBackend::Json(JsonBackend::new(output_path))
 	} else {
 		info!("Initializing Anki sync engine...");
-		flash::sync::AnyBackend::Sync(flash::sync::SyncEngine::new().await?)
+		AnyBackend::Sync(SyncEngine::new().await?)
 	};
 
 	for (deck_path, deck) in &decks {

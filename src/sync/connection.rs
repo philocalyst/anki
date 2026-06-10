@@ -24,30 +24,25 @@ pub async fn get_collection_snapshot(client: &FlashClient) -> Result<CollectionS
 	let results = client
 		.misc()
 		.multi(&[
-			MultiAction::with_params("getCollection", Value::Null),
 			MultiAction::with_params("deckNamesAndIds", Value::Null),
 			MultiAction::with_params("modelNamesAndIds", Value::Null),
 		])
 		.await
 		.map_err(|e| eyre::eyre!("Failed to get collection snapshot: {}", e))?;
 
-	if results.len() < 3 {
+	if results.len() < 2 {
 		bail!("Unexpected response from multi action");
 	}
 
-	let snapshot = CollectionSnapshot {
-		decks:      parse_ids(&results[1]),
-		models:     parse_ids(&results[2]),
-		collection: results[0].clone(),
-	};
+	let snapshot =
+		CollectionSnapshot { decks: parse_ids(&results[0]), models: parse_ids(&results[1]) };
 
 	Ok(snapshot)
 }
 
 pub struct CollectionSnapshot {
-	pub decks:      HashMap<String, i64>,
-	pub models:     HashMap<String, i64>,
-	pub collection: Value,
+	pub decks: HashMap<String, i64>,
+	pub models: HashMap<String, i64>,
 }
 
 pub fn parse_ids(value: &Value) -> HashMap<String, i64> {

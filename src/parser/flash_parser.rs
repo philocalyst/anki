@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
+use std::{
+	borrow::Cow,
+	collections::{HashMap, HashSet},
+	fs,
+	path::{Path, PathBuf},
+};
 
 use chumsky::{input::ValueInput, prelude::*};
 use evalexpr::{DefaultNumericTypes, HashMapContext, Value, eval_empty_with_context_mut};
@@ -17,7 +22,7 @@ use crate::note::{Cloze, Note, NoteField, NoteModel, TextElement};
 /// Preprocessor that expands import statements recursively
 pub struct ImportExpander {
 	/// Track visited files to prevent circular imports
-	visited:  HashSet<PathBuf>,
+	visited: HashSet<PathBuf>,
 	/// Base directory for resolving relative imports
 	base_dir: PathBuf,
 }
@@ -82,7 +87,7 @@ use std::fmt;
 impl<'src> fmt::Display for Token<'src> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Slash => write!(f, "/"),
+			Self::ModelDelimiter(s) => write!(f, "{}", s),
 			Self::RArrow => write!(f, ">"),
 			Self::Colon => write!(f, ":"),
 			Self::LBracket => write!(f, "["),
@@ -106,8 +111,9 @@ impl<'src> fmt::Display for Token<'src> {
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 pub enum Token<'src> {
-	#[token("/")]
-	Slash,
+	#[token("/", |lex| lex.slice())]
+	#[token("=", |lex| lex.slice())]
+	ModelDelimiter(&'src str),
 
 	#[token(":")]
 	Colon,
@@ -151,7 +157,7 @@ pub enum Token<'src> {
 	#[regex(r"[ \t]+")]
 	WS(&'src str),
 
-	#[regex(r"[^ \t\n:=\[\](){},|/]+", priority = 4)]
+	#[regex(r"[^ \t\n:=\[\](){},|/=]+", priority = 4)]
 	Text(&'src str),
 
 	#[regex(r"//[^\n]*", allow_greedy = true, priority = 3)]
@@ -207,9 +213,9 @@ where
 		Token::WS(s) => s,
 	};
 
-	just(Token::Slash)
+	select! { Token::ModelDelimiter(_) => () }
 		.ignore_then(model_name_parts.repeated().collect::<Vec<_>>())
-		.then_ignore(just(Token::Slash))
+		.then_ignore(select! { Token::ModelDelimiter(_) => () })
 		.map(|parts: Vec<&str>| parts.concat().trim().to_string())
 		.labelled("model declaration")
 }
@@ -332,27 +338,35 @@ where
 		.labelled("field declaration")
 }
 
-// Note Builder
-
 /// Build a note from parsed components
 struct NoteComponents<'model> {
-	model:   &'model NoteModel,
+	model: &'model NoteModel,
 	aliases: HashMap<String, String>,
-	tags:    Vec<String>,
-	fields:  Vec<NoteField<'model>>,
+	tags: Vec<String>,
+	fields: Vec<NoteField<'model>>,
 }
 
 impl<'model> NoteComponents<'model> {
-	fn into_note(mut self) -> Note<'model> {
-		// Resolve aliases in fields
-		for field in &mut self.fields {
-			// Get the corresponding alias
-			if let Some(target) = self.aliases.get(&field.name) {
-				field.name = target.clone();
-			}
+	fn into_note(self, unique_prefix: &HashMap<String, String>) -> Note<'model> {
+		let mut final_fields = Vec::with_capacity(self.model.fields.len());
+
+		for model_field in &self.model.fields {
+			// Find if we have this field in our parsed fields
+			let content = self
+				.fields
+				.iter()
+				.find(|f| {
+					let resolved_name =
+						self.aliases.get(&f.name).or(unique_prefix.get(&f.name)).unwrap_or(&f.name);
+					resolved_name == &model_field.name
+				})
+				.map(|f| f.content.clone())
+				.unwrap_or_default();
+
+			final_fields.push(NoteField { name: model_field.name.clone(), content });
 		}
 
-		Note { fields: self.fields, model: Cow::Borrowed(self.model), tags: self.tags }
+		Note { fields: final_fields, model: Cow::Borrowed(self.model), tags: self.tags }
 	}
 }
 
@@ -513,7 +527,7 @@ for (i, model_field) in fields.iter().enumerate() {
 					tags: tags.unwrap_or_default(),
 					fields,
 				}
-				.into_note(),
+				.into_note(&unique_prefix),
 			)
 		})
 		.collect();
@@ -533,22 +547,22 @@ for (i, model_field) in fields.iter().enumerate() {
 #[cfg(test)]
 fn mock_model() -> NoteModel {
 	NoteModel {
-		name:           "Basic".to_string(),
-		id:             Uuid::new_v4(),
-		templates:      vec![],
+		name: "Basic".to_string(),
+		id: Uuid::new_v4(),
+		templates: vec![],
 		schema_version: Version::new(1, 0, 0),
-		defaults:       None,
-		css:            "".to_string(),
-		fields:         vec![
+		defaults: None,
+		css: "".to_string(),
+		fields: vec![
 			Field { name: "Front".into(), sticky: None, associated_media: None },
 			Field { name: "Back".into(), sticky: None, associated_media: None },
 		],
-		latex_pre:      None,
-		latex_post:     None,
-		sort_field:     None,
-		tags:           None,
+		latex_pre: None,
+		latex_post: None,
+		sort_field: None,
+		tags: None,
 		// Requirement: Front must be present
-		required:       evalexpr::build_operator_tree("Front").unwrap(),
+		required: evalexpr::build_operator_tree("Front").unwrap(),
 	}
 }
 
@@ -656,7 +670,6 @@ fn parse_with_comment() {
 fn token_display_formats_correctly() {
 	use super::Token;
 	let cases = vec![
-		(Token::Slash, "/"),
 		(Token::RArrow, ">"),
 		(Token::Colon, ":"),
 		(Token::LBracket, "["),
@@ -751,6 +764,20 @@ fn parse_note_with_cloze_noid() {
 "#;
 	let notes = parse_cards(&models, input).expect("Should parse cloze without id");
 	assert_eq!(notes.len(), 1);
+}
+
+#[test]
+fn parse_with_equals_delimiter() {
+	let models = vec![mock_model()];
+	let input = r#"
+= Basic =
+(Front) Hello
+(Back) World
+"#;
+	let notes = parse_cards(&models, input).expect("Should parse with equals delimiter");
+	assert_eq!(notes.len(), 1);
+	assert_eq!(notes[0].fields[0].name, "Front");
+	assert_eq!(notes[0].fields[1].name, "Back");
 }
 
 #[test]

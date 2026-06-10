@@ -155,7 +155,16 @@ impl<'model> super::Deck<'model> {
 				.map_err(|_| DeckError::DeckConfigNotFound(config_path.clone()))?;
 			toml::from_str(&config_content)?
 		} else {
-			DeckConfig::blank(deck_identifer)
+			DeckConfig {
+				flash_uuid: deck_identifer.to_string(),
+				name: deck_path
+					.file_prefix()
+					.expect("should always work bro")
+					.to_str()
+					.unwrap()
+					.to_string(),
+				..Default::default()
+			}
 		};
 
 		if configuration.flash_uuid.is_empty() {
@@ -191,25 +200,6 @@ impl<'model> super::Deck<'model> {
 			// and the cards will be moved along with them
 			mem::transmute::<Vec<Identified<Note<'_>>>, Vec<Identified<Note<'model>>>>(temp_cards)
 		};
-
-		// Final check to ensure all cards have the required amount of fields
-		cards.iter_mut().for_each(|card| {
-			let ideal_field_count = card.inner.model.fields.len();
-			let current_field_count = card.inner.fields.len();
-
-			// Cover the too-many-fields case
-			if current_field_count > ideal_field_count {
-				panic!();
-			}
-
-			let mut difference = ideal_field_count - current_field_count;
-
-			// Difference of zero is no difference ofc
-			while difference != 0 {
-				card.inner.fields.push(NoteField::default());
-				difference -= 1;
-			}
-		});
 
 		info!("Deck initialized successfully");
 		Ok(Self { models, backing_vcs, cards, configuration })

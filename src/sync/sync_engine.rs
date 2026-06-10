@@ -4,10 +4,24 @@ use eyre::{Result, WrapErr};
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{config::DeckConfig, deck::Deck, note::{Identified, Note as FlashNote}, sync::{backend::ExportBackend, client::FlashClient, connection::{self, CollectionSnapshot}, deck_sync::{self, DeckSyncData}, media_sync, model_sync::{self, ModelSyncData, TemplateSyncData}, note_sync::{self, NoteSyncData}, reconcile}};
+use crate::{
+	config::DeckConfig,
+	deck::Deck,
+	note::{Identified, Note as FlashNote},
+	sync::{
+		backend::ExportBackend,
+		client::FlashClient,
+		connection::{self, CollectionSnapshot},
+		deck_sync::{self, DeckSyncData},
+		media_sync,
+		model_sync::{self, ModelSyncData, TemplateSyncData},
+		note_sync::{self, NoteSyncData},
+		reconcile,
+	},
+};
 
 pub struct SyncEngine {
-	client:   FlashClient,
+	client: FlashClient,
 	snapshot: CollectionSnapshot,
 }
 
@@ -72,20 +86,20 @@ impl SyncEngine {
 		let mut model_name_map: Vec<(Uuid, String)> = Vec::new();
 		for model in models {
 			let model_data = ModelSyncData {
-				uuid:       model.id,
-				name:       model.name.clone(),
-				fields:     model.fields.iter().map(|f| f.name.clone()).collect(),
-				templates:  model
+				uuid: model.id,
+				name: model.name.clone(),
+				fields: model.fields.iter().map(|f| f.name.clone()).collect(),
+				templates: model
 					.templates
 					.iter()
 					.map(|t| TemplateSyncData {
-						name:  t.name.clone(),
+						name: t.name.clone(),
 						front: t.question_format.clone(),
-						back:  t.answer_format.clone(),
+						back: t.answer_format.clone(),
 					})
 					.collect(),
-				css:        model.css.clone(),
-				latex_pre:  model.latex_pre.clone(),
+				css: model.css.clone(),
+				latex_pre: model.latex_pre.clone(),
 				latex_post: model.latex_post.clone(),
 			};
 			let anki_name = model_sync::sync_model(&self.client, &model_data).await?;
@@ -175,8 +189,8 @@ mod tests {
 	fn render_fields_plain_text() {
 		let note = Note {
 			fields: vec![text_field("Front", "Hello"), text_field("Back", "World")],
-			model:  Cow::Owned(NoteModel::default()),
-			tags:   vec![],
+			model: Cow::Owned(NoteModel::default()),
+			tags: vec![],
 		};
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
@@ -190,8 +204,8 @@ mod tests {
 	fn render_fields_empty_content() {
 		let note = Note {
 			fields: vec![text_field("Front", "")],
-			model:  Cow::Owned(NoteModel::default()),
-			tags:   vec![],
+			model: Cow::Owned(NoteModel::default()),
+			tags: vec![],
 		};
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
@@ -202,15 +216,14 @@ mod tests {
 	#[test]
 	fn render_fields_multiple_text_elements_in_field() {
 		let field = NoteField {
-			name:    "Front".into(),
+			name: "Front".into(),
 			content: vec![
 				TextElement::Text("Hello ".into()),
 				TextElement::Text("World ".into()),
 				TextElement::Text("from Flash".into()),
 			],
 		};
-		let note =
-			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
+		let note = Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
 		let result = render_fields(&card);
@@ -220,19 +233,18 @@ mod tests {
 	#[test]
 	fn render_fields_cloze_without_hint() {
 		let field = NoteField {
-			name:    "Text".into(),
+			name: "Text".into(),
 			content: vec![
 				TextElement::Text("The capital of France is ".into()),
 				TextElement::Cloze(Cloze {
-					id:     1,
+					id: 1,
 					answer: vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("Paris"))],
-					hint:   None,
+					hint: None,
 				}),
 				TextElement::Text(".".into()),
 			],
 		};
-		let note =
-			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
+		let note = Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
 		let result = render_fields(&card);
@@ -242,19 +254,18 @@ mod tests {
 	#[test]
 	fn render_fields_cloze_with_hint() {
 		let field = NoteField {
-			name:    "Text".into(),
+			name: "Text".into(),
 			content: vec![
 				TextElement::Text("A synonym for happy is ".into()),
 				TextElement::Cloze(Cloze {
-					id:     2,
+					id: 2,
 					answer: vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("joyful"))],
-					hint:   Some("starts with j".into()),
+					hint: Some("starts with j".into()),
 				}),
 				TextElement::Text(".".into()),
 			],
 		};
-		let note =
-			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
+		let note = Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
 		let result = render_fields(&card);
@@ -267,23 +278,22 @@ mod tests {
 	#[test]
 	fn render_fields_mixed_cloze_and_text() {
 		let field = NoteField {
-			name:    "Q".into(),
+			name: "Q".into(),
 			content: vec![
 				TextElement::Cloze(Cloze {
-					id:     1,
+					id: 1,
 					answer: vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("Berlin"))],
-					hint:   None,
+					hint: None,
 				}),
 				TextElement::Text(" is the capital of ".into()),
 				TextElement::Cloze(Cloze {
-					id:     2,
+					id: 2,
 					answer: vec![jotdown::Event::Str(std::borrow::Cow::Borrowed("Germany"))],
-					hint:   Some("European country".into()),
+					hint: Some("European country".into()),
 				}),
 			],
 		};
-		let note =
-			Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
+		let note = Note { fields: vec![field], model: Cow::Owned(NoteModel::default()), tags: vec![] };
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 
 		let result = render_fields(&card);
@@ -301,8 +311,8 @@ mod tests {
 				text_field("Answer", "That!"),
 				text_field("Extra", "Details..."),
 			],
-			model:  Cow::Owned(NoteModel::default()),
-			tags:   vec![],
+			model: Cow::Owned(NoteModel::default()),
+			tags: vec![],
 		};
 		let card = Identified { id: Uuid::new_v4(), inner: note };
 

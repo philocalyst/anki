@@ -1,14 +1,23 @@
 use std::collections::HashSet;
 
 use eyre::{Result, bail};
+use rand::RngExt;
+use serde_json::json;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::{config::DeckConfig, sync::{client::{FlashClient, unique_name}, connection::CollectionSnapshot, identity::FLASH_DECK_UUID_KEY}};
+use crate::{
+	config::DeckConfig,
+	sync::{
+		client::{FlashClient, unique_name},
+		connection::CollectionSnapshot,
+		identity::FLASH_DECK_UUID_KEY,
+	},
+};
 
 pub struct DeckSyncData {
-	pub uuid:   Uuid,
-	pub name:   String,
+	pub uuid: Uuid,
+	pub name: String,
 	pub config: DeckConfig,
 }
 
@@ -21,8 +30,8 @@ pub async fn sync_deck(
 ) -> Result<String> {
 	let uuid_str = deck.uuid.to_string();
 
-	// Look up deck by UUID stored in its config
-	let existing_name = find_deck_by_config_uuid(client, &deck.uuid).await?;
+	// Look up the deck by UUID stored in its config, to see if the clients anki already holds it
+	let existing_name = find_external_deck(client, &deck.uuid).await?;
 
 	if let Some(anki_name) = existing_name {
 		info!("Deck '{}' found in Anki (uuid: {})", anki_name, uuid_str);
@@ -62,21 +71,19 @@ pub async fn sync_deck(
 }
 
 /// Find a deck by its flash UUID stored in the deck config.
-async fn find_deck_by_config_uuid(
-	client: &FlashClient,
-	deck_uuid: &Uuid,
-) -> Result<Option<String>> {
-	let deck_names =
+async fn find_external_deck(client: &FlashClient, local_uuid: &Uuid) -> Result<Option<String>> {
+	let external_deck_names =
 		client.decks().names().await.map_err(|e| eyre::eyre!("Failed to get deck names: {}", e))?;
 
-	let uuid_str = deck_uuid.to_string();
+	let uuid_str = local_uuid.to_string();
 
-	for name in &deck_names {
-		if let Some(config) = client.get_deck_config(name).await?
+	for external_name in &external_deck_names {
+		// TODO: Somehow validate that there's not duplicates?
+		if let Some(config) = client.get_deck_config(external_name).await?
 			&& let Some(found) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str())
 			&& found == uuid_str
 		{
-			return Ok(Some(name.clone()));
+			return Ok(Some(external_name.clone()));
 		}
 	}
 
@@ -84,6 +91,7 @@ async fn find_deck_by_config_uuid(
 }
 
 /// Store the flash UUID in a deck's config so we can find it later.
+/// Only used when setting up new decks
 async fn store_deck_uuid(client: &FlashClient, deck_name: &str, deck_uuid: &Uuid) -> Result<()> {
 	let mut config = match client.get_deck_config(deck_name).await? {
 		Some(serde_json::Value::Object(map)) => map,
@@ -92,6 +100,14 @@ async fn store_deck_uuid(client: &FlashClient, deck_name: &str, deck_uuid: &Uuid
 		}
 	};
 
+	// we need to set this to a random number to avoid "configuration group" conflicts (as they all contain unique ids).
+	// if there's a cleaner way to store data in ANKI plese let me know
+	// TODO: make this all typesafe because this corrupted my whole store bruh
+	let id = config.get_mut(&String::from("id")).unwrap();
+	let random_identifier = rand::rng().random::<u32>();
+	*id = json!(random_identifier);
+
+	// Insert our identifying key
 	config.insert(FLASH_DECK_UUID_KEY.to_string(), serde_json::Value::String(deck_uuid.to_string()));
 
 	client.save_deck_config(&config).await?;
