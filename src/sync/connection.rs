@@ -55,7 +55,7 @@ pub fn parse_ids(value: &Value) -> HashMap<String, i64> {
 		obj.iter().filter_map(|(name, id)| id.as_i64().map(|id| (name.clone(), id))).collect()
 	}
 
-	value.as_object().map(|obj| to_ids(obj)).unwrap_or_default()
+	value.as_object().map(to_ids).unwrap_or_default()
 }
 
 /// Find a deck by its flash_uuid stored in the deck config.
@@ -68,12 +68,11 @@ pub async fn find_deck_by_uuid(
 	let uuid_str = deck_uuid.to_string();
 
 	for deck_name in snapshot.decks.keys() {
-		if let Some(config) = client.get_deck_config(deck_name).await? {
-			if let Some(found_uuid) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str()) {
-				if found_uuid == uuid_str {
-					return Ok(Some(deck_name.clone()));
-				}
-			}
+		if let Some(config) = client.get_deck_config(deck_name).await?
+			&& let Some(found_uuid) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str())
+			&& found_uuid == uuid_str
+		{
+			return Ok(Some(deck_name.clone()));
 		}
 	}
 

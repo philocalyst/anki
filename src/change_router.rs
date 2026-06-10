@@ -11,15 +11,11 @@ pub enum Transforms<'borrow, 'content> {
 }
 
 pub struct ChangeRouter<'borrow, 'content> {
-	before: &'borrow [Note<'content>],
-	after: &'borrow [Note<'content>],
+	pub(crate) before: &'borrow [Note<'content>],
+	pub(crate) after: &'borrow [Note<'content>],
 }
 
 impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
-	pub fn new(before: &'borrow [Note<'content>], after: &'borrow [Note<'content>]) -> Self {
-		Self { before, after }
-	}
-
 	pub fn determine_changes(&self) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
 		// Early return if decks are identical - no changes needed
 		if self.before == self.after {
@@ -47,7 +43,7 @@ impl<'borrow, 'content> ChangeRouter<'borrow, 'content> {
 			return Ok(Some(Transforms::Additions(self.how_it_grew()?)));
 		} else {
 			// Deck shrank - find all deletions by walking both decks
-			return Ok(Some(Transforms::Deletions(self.how_it_shrank()?)));
+			Ok(Some(Transforms::Deletions(self.how_it_shrank()?)))
 		}
 	}
 
@@ -167,7 +163,8 @@ pub fn determine_changes<'borrow, 'content>(
 	after: &'borrow [Note<'content>],
 	// Transforms are relevant only to the new deck
 ) -> Result<Option<Transforms<'borrow, 'content>>, DeckError> {
-	ChangeRouter::new(before, after).determine_changes()
+	// Kind of silly abstraction we have because the func is so much larger than the internals but it's cleaner bro
+	ChangeRouter{before, after}.determine_changes()
 }
 
 #[cfg(test)]

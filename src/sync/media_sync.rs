@@ -20,14 +20,14 @@ pub async fn sync_media(client: &FlashClient, deck_path: &Path) -> Result<()> {
 		let entry = entry.map_err(|e| eyre::eyre!("Failed to read directory entry: {}", e))?;
 		let path = entry.path();
 
-		if path.is_file() {
-			if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-				info!("Storing media file: {}", filename);
+		if path.is_file()
+			&& let Some(filename) = path.file_name().and_then(|n| n.to_str())
+		{
+			info!("Storing media file: {}", filename);
 
-				let data = base64_encode_file(&path)?;
+			let data = base64_encode_file(&path)?;
 
-				client.store_media_file(filename, &data).await?;
-			}
+			client.store_media_file(filename, &data).await?;
 		}
 	}
 

@@ -72,12 +72,11 @@ async fn find_deck_by_config_uuid(
 	let uuid_str = deck_uuid.to_string();
 
 	for name in &deck_names {
-		if let Some(config) = client.get_deck_config(name).await? {
-			if let Some(found) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str()) {
-				if found == uuid_str {
-					return Ok(Some(name.clone()));
-				}
-			}
+		if let Some(config) = client.get_deck_config(name).await?
+			&& let Some(found) = config.get(FLASH_DECK_UUID_KEY).and_then(|v| v.as_str())
+			&& found == uuid_str
+		{
+			return Ok(Some(name.clone()));
 		}
 	}
 

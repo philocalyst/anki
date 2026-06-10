@@ -1,9 +1,10 @@
+#![allow(async_fn_in_trait)]
+
 use std::path::PathBuf;
 
 use clap::Parser;
 use eyre::{Context, Result};
-use flash::{deck::Deck, sync::{ExportBackend, JsonBackend, SyncEngine}};
-use tracing::info;
+use flash::{deck::Deck, ;use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 fn init_tracing() {

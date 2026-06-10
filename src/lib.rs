@@ -1,3 +1,6 @@
+// Don't care about that warning
+#![allow(async_fn_in_trait)]
+
 pub mod change_resolver;
 pub mod change_router;
 pub mod config;

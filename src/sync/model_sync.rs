@@ -74,7 +74,7 @@ async fn create_model(client: &FlashClient, model: &ModelSyncData) -> Result<Str
 	for field_name in &model.fields {
 		params = params.field(field_name);
 	}
-	params = params.css(&model_css_with_uuid(model));
+	params = params.css(model_css_with_uuid(model));
 	for tmpl in &model.templates {
 		params = params.template(&tmpl.name, &tmpl.front, &tmpl.back);
 	}
