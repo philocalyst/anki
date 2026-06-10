@@ -21,6 +21,7 @@ opentelemetry = "*"
 opentelemetry-stdout = "*"
 opentelemetry_sdk = "*"
 ordered-float = { version = "*", features = ["serde"] }
+rand = "0.10.1"
 rhai = "*"
 semver = { version = "*", features = ["serde"] }
 serde = { version = "*", features = ["derive"] }
